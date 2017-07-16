@@ -15,16 +15,16 @@ lines = candidate_lines + existing_lines
 
 # NOTE: Make sure all parameters are floats to avoid int*float -> int type issues if using Python 2
 # costs
-C_g = np.array([2., 2., 1.])
+C_g = np.array([1., 2., 2.])
 
 # generation and flow limit
-G_max = np.array([[10., 10.],
-				  [10., 10.],
-				  [10., 10.]])
+G_max = np.array([[5., 5.],
+				  [5., 5.],
+				  [5., 5.]])
 
-F_max = np.array([[1., 1.],
-				  [10., 10.],
-				  [1., 1.]])
+F_max = np.array([[5., 5.],
+				  [5., 5.],
+				  [5., 5.]])
 F_min = -F_max
 
 # lines x nodes

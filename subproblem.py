@@ -88,6 +88,6 @@ def get_uncertain_variables():
 	uncertain_variables = [v for v in subproblem.getVars() if 'uncertain_demand' in v.varName]
 
 	names = np.array([v.varName for v in uncertain_variables])
-	values = np.array([int(np.round(v.x)) for v in uncertain_variables])
+	values = np.array([v.x for v in uncertain_variables])
 
 	return names, values

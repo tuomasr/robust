@@ -1,7 +1,8 @@
 import numpy as np
 
 from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables
-from master_problem import generate_master_problem, get_investment_cost
+from master_problem import master_problem, augment_master_problem, get_investment_cost
+from common_data import nodes
 
 
 MAX_ITERATIONS = 10
@@ -10,24 +11,29 @@ EPSILON = 1e-6 	# From Minguez (2016)
 UB = np.inf
 LB = -np.inf
 
+
 def compute_objective_gap(LB, UB):
 	return (UB - LB) / UB
 
-d = None 	# the uncertain variables have not been set yet
+
+d = np.zeros((len(nodes), 1)) 	# no uncertain variables for the first iteration
 converged = False
 
 separator = '-' * 50
+
 
 def print_iteration_counter(iteration):
 	print separator
 	print 'ITERATION', iteration
 	print separator
 
+
 for iteration in range(MAX_ITERATIONS):
 	print_iteration_counter(iteration)
 
-	# generate a master problem for the current iteration and uncertain variable values
-	master_problem = generate_master_problem(iteration, d)
+	# augment the master problem for the current iteration
+	if iteration > 0:
+		augment_master_problem(iteration, d)
 
 	master_problem.optimize()
 
@@ -64,14 +70,9 @@ for iteration in range(MAX_ITERATIONS):
 	# read the values of the uncertain variables
 	_, uncertain_variable_vals = get_uncertain_variables()
 
-	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
-
 	# add new column to d
-	if d is None:
-		d = uncertain_variable_vals
-	else:
-		uncertain_variable_vals
-		d = np.concatenate((d, uncertain_variable_vals), axis=1)
+	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
+	d = np.concatenate((d, uncertain_variable_vals), axis=1)
 
 print separator
 
@@ -82,7 +83,7 @@ else:
 
 print separator
 print 'Objective value:', master_problem.objVal
-print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal) 
+print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal)
 print separator
 print 'Primal variables:'
 print separator
@@ -95,9 +96,3 @@ print separator
 names, values = get_uncertain_variables()
 for name, value in zip(names, values):
 	print name, value
-
-
-
-
-
-
