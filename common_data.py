@@ -1,36 +1,45 @@
 import numpy as np
 
+np.random.seed(1)
+
 # indices and sets
-scenarios = [0, 1]
-nodes = [0, 1, 2]
+num_scenarios = 1000
+scenarios = range(num_scenarios)
 
-existing_units = [1, 2]
-existing_lines = [1, 2]
+num_nodes = 4
+nodes = range(num_nodes)
 
-candidate_units = [0]
-candidate_lines = [0]
+existing_units = [1, 3]
+existing_lines = [0, 2]
+
+candidate_units = [0, 2]
+candidate_lines = [1, 3]
 
 units = candidate_units + existing_units
 lines = candidate_lines + existing_lines
 
+num_lines = len(lines)
+
 # NOTE: Make sure all parameters are floats to avoid int*float -> int type issues if using Python 2
 # costs
-C_g = np.array([1., 2., 2.])
+C_g = np.array([1., 5., 5., 5.])
 
 # generation and flow limit
-G_max = np.array([[5., 5.],
-				  [5., 5.],
-				  [5., 5.]])
+G_max = np.array([[10., 10., 10., 10.]])
+G_max = np.tile(G_max.transpose(), (1, num_scenarios))
+G_max += np.random.uniform(-1.0, 2.0, (num_nodes, num_scenarios))
 
-F_max = np.array([[5., 5.],
-				  [5., 5.],
-				  [5., 5.]])
+F_max = np.array([[5., 5., 5., 5.]])
+F_max = np.tile(F_max.transpose(), (1, num_scenarios))
+F_max += np.random.uniform(-1.5, 1.5, (num_lines, num_scenarios))
+
 F_min = -F_max
 
 # lines x nodes
-incidence = np.array([[-1., 1., 0.],
-					  [0., -1., 1.],
-					  [-1., 0., 1.]])
+incidence = np.array([[-1., 1., 0., 0.],
+					  [0., -1., 1., 0.],
+					  [0., 0., -1., 1.],
+					  [1., 0., 0., -1.]])
 
-# scenario weights
-weights = np.array([0.5, 0.5])
+# equal scenario weights
+weights = np.ones(num_scenarios) / float(num_scenarios)

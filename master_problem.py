@@ -6,12 +6,12 @@ from common_data import scenarios, nodes, units, lines, existing_units, existing
 
 
 # problem-specific data: generation and investment costs
-C_x = 1.
-C_y = 1.
+C_x = {unit: 1. for unit in candidate_units}
+C_y = {line: 1. for line in candidate_lines}
 
 
 def get_investment_cost(x, y):
-	return C_x*x + C_y*y
+	return sum(C_x[u]*x[u] for u in candidate_units) + sum(C_y[l]*y[l] for l in candidate_lines)
 
 
 def add_primal_variables(iteration):
@@ -30,8 +30,8 @@ m = Model("master_problem")
 g, f = add_primal_variables(0) 	# primal variables for the initial model
 
 # investment to a generation unit and transmission line
-x = m.addVar(vtype=GRB.BINARY, name='x')
-y = m.addVar(vtype=GRB.BINARY, name='y')
+x = m.addVars(candidate_units, vtype=GRB.BINARY, name='unit_investment')
+y = m.addVars(candidate_lines, vtype=GRB.BINARY, name='line_investment')
 
 # subproblem objective value
 theta = m.addVar(name='theta')
@@ -56,14 +56,14 @@ def augment_master_problem(current_iteration, d):
 				 for n in nodes for o in scenarios), name='balance')
 
 	# generation constraint for the candidate units
-	m.addConstrs((g[u, o, v] <= G_max[u, o]*x for u in candidate_units for o in scenarios),
+	m.addConstrs((g[u, o, v] <= G_max[u, o]*x[u] for u in candidate_units for o in scenarios),
 	 			 name='maximum_candidate_generation')
 
 	# flow constraint for the candidate lines
-	m.addConstrs((f[l, o, v] <= F_max[l, o]*y for l in candidate_lines for o in scenarios),
+	m.addConstrs((f[l, o, v] <= F_max[l, o]*y[l] for l in candidate_lines for o in scenarios),
 	 			 name='maximum_candidate_flow')
 
-	m.addConstrs((f[l, o, v] >= F_min[l, o]*y for l in candidate_lines for o in scenarios),
+	m.addConstrs((f[l, o, v] >= F_min[l, o]*y[l] for l in candidate_lines for o in scenarios),
 	 			 name='minimum_candidate_flow')
 
 

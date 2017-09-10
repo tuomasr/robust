@@ -6,8 +6,8 @@ from common_data import scenarios, nodes, units, lines, existing_units, existing
 
 
 # problem-specific data
-nominal_demand = np.array([1., 1., 1.])
-demand_increase = np.array([1., 1., 1.])
+nominal_demand = np.array([3., 3., 3., 3.])
+demand_increase = np.array([1., 1., 1., 1.])
 uncertainty_budget = 2.
 
 # create a model
@@ -31,8 +31,8 @@ mu_bar = m.addVars(lines, scenarios, name='dual_maximum_flow', lb=0.)
 mu_underline = m.addVars(lines, scenarios, name='dual_minimum_flow', lb=0.)
 
 # balance equation dual (i.e. price)
-max_lambda_ = 100. 	# bad values (e.g. 10k) will lead to numerical issues
-min_lambda_ = -100.
+max_lambda_ = 1000. 	# bad values (e.g. 10k) will lead to numerical issues
+min_lambda_ = -1000.
 lambda_ = m.addVars(nodes, scenarios, name='dual_balance', lb=min_lambda_, ub=max_lambda_)
 
 # set objective
@@ -42,13 +42,13 @@ def get_objective(x, y):
 		sum(sum(z[n, o]*demand_increase[n] + lambda_[n, o]*nominal_demand[n] for n in nodes) -
 			sum(beta_bar[u, o]*G_max[u, o] for u in existing_units) -
 			sum(mu_bar[l, o]*F_max[l, o] - mu_underline[l, o]*F_min[l, o] for l in existing_lines) -
-			sum(beta_bar[u, o]*G_max[u, o]*x for u in candidate_units) -
-			sum(mu_bar[l, o]*F_max[l, o]*y - mu_underline[l, o]*F_min[l, o]*y for l in candidate_lines)
+			sum(beta_bar[u, o]*G_max[u, o]*x[u] for u in candidate_units) -
+			sum(mu_bar[l, o]*F_max[l, o]*y[l] - mu_underline[l, o]*F_min[l, o]*y[l] for l in candidate_lines)
 			for o in scenarios)
 
 	return obj
 
-def set_subproblem_objective(x=0., y=0.):
+def set_subproblem_objective(x=np.zeros(100, dtype=np.float32), y=np.zeros(100, dtype=np.float32)):
 	# set objective function for the subproblem
 	obj = get_objective(x, y)
 
