@@ -19,7 +19,7 @@ MAX_ITERATIONS = 10
 EPSILON = 1e-6 	# From Minguez (2016)
 # A bug or numerical issues cause LB to become higher than UB in some cases.
 # This allows some slack.
-BAD_GAP_THRESHOLD = -1e-2
+BAD_GAP_THRESHOLD = -1e-6
 
 UB = np.inf
 LB = -np.inf
@@ -65,6 +65,8 @@ for iteration in range(MAX_ITERATIONS):
 
 	if iteration == 0:
 		assert np.allclose(x, 0) and np.allclose(y, 0), 'Initial master problem solution suboptimal.'
+		prev_x = x
+		prev_y = y
 
 	x = {u: v for u, v in zip(candidate_units, x)}
 	y = {l: v for l, v in zip(candidate_lines, y)}
@@ -79,14 +81,7 @@ for iteration in range(MAX_ITERATIONS):
 
 	GAP = compute_objective_gap(LB, UB)
 
-	assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound below lower bound :/'
-
 	gaps.append(GAP)
-
-	# exit if the algorithm converged
-	if GAP < EPSILON:
-		converged = True
-		break
 
 	# read the values of the uncertain variables
 	_, uncertain_variable_vals = get_uncertain_variables()
@@ -94,6 +89,19 @@ for iteration in range(MAX_ITERATIONS):
 	# add new column to d
 	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
 	d = np.concatenate((d, uncertain_variable_vals), axis=1)
+
+	# exit if the algorithm converged. 1) LB and UB needs to be close to each other
+	# 2) solutions to master problem and subproblem must stay constant.
+	prev_x = x
+	prev_y = y
+
+	unchanged_decisions = (prev_x == x) and (prev_y == y) and all(d[:, -1] == d[:, -2])
+
+	if GAP < EPSILON and unchanged_decisions:
+		converged = True
+		#assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
+		break
+
 
 print separator
 
@@ -117,6 +125,15 @@ print separator
 names, values = get_uncertain_variables()
 for name, value in zip(names, values):
 	print name, value
+
+print_dual_variables = False
+
+if print_dual_variables:
+	print separator
+	print 'Dual variables:'
+	print separator
+	for v in subproblem.getVars():
+		print v.varName, v.x
 
 plot_gap = True
 

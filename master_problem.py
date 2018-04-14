@@ -34,7 +34,7 @@ x = m.addVars(candidate_units, vtype=GRB.BINARY, name='unit_investment')
 y = m.addVars(candidate_lines, vtype=GRB.BINARY, name='line_investment')
 
 # subproblem objective value
-theta = m.addVar(name='theta')
+theta = m.addVar(name='theta', lb=-GRB.INFINITY)
 
 # set objective. The optimal solution is no investment
 m.setObjective(get_investment_cost(x, y) + theta, GRB.MINIMIZE)
@@ -52,18 +52,18 @@ def augment_master_problem(current_iteration, d):
 	 			for o in scenarios) >= 0., name='minimum_subproblem_objective')
 
 	# balance equation. Note that d[n, v] is input data from the subproblem
-	m.addConstrs((g[n, o, v] + sum(incidence[l, n]*f[l, o, v] for l in lines) == d[n, v]
+	m.addConstrs((g[n, o, v] + sum(incidence[l, n]*f[l, o, v] for l in lines) - d[n, v] == 0.
 				 for n in nodes for o in scenarios), name='balance')
 
 	# generation constraint for the candidate units
-	m.addConstrs((g[u, o, v] <= G_max[u, o]*x[u] for u in candidate_units for o in scenarios),
+	m.addConstrs((g[u, o, v] - G_max[u, o]*x[u] <= 0. for u in candidate_units for o in scenarios),
 	 			 name='maximum_candidate_generation')
 
 	# flow constraint for the candidate lines
-	m.addConstrs((f[l, o, v] <= F_max[l, o]*y[l] for l in candidate_lines for o in scenarios),
+	m.addConstrs((f[l, o, v] - F_max[l, o]*y[l] <= 0. for l in candidate_lines for o in scenarios),
 	 			 name='maximum_candidate_flow')
 
-	m.addConstrs((f[l, o, v] >= F_min[l, o]*y[l] for l in candidate_lines for o in scenarios),
+	m.addConstrs((F_min[l, o]*y[l] - f[l, o, v] <= 0. for l in candidate_lines for o in scenarios),
 	 			 name='minimum_candidate_flow')
 
 
