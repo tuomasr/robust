@@ -6,7 +6,7 @@ from master_problem import master_problem, augment_master_problem, get_investmen
 from common_data import nodes, candidate_units, candidate_lines
 
 # Configure Gurobi.
-enable_custom_configuration = True
+enable_custom_configuration = False
 
 GRB_PARAMS = [('MIPGap', 0.),
 			  ('FeasibilityTol', 1e-9),
@@ -24,7 +24,7 @@ if enable_custom_configuration:
 		master_problem.setParam(parameter, value)
 		subproblem.setParam(parameter, value)
 
-MAX_ITERATIONS = 50
+MAX_ITERATIONS = 10
 EPSILON = 1e-6 	# From Minguez (2016)
 # A bug or numerical issues cause LB to become higher than UB in some cases.
 # This allows some slack.
@@ -119,7 +119,7 @@ for iteration in range(MAX_ITERATIONS):
 
 	unchanged_decisions = (prev_x == x) and (prev_y == y) and all(d[:, -1] == d[:, -2])
 
-	if GAP < EPSILON:
+	if GAP < EPSILON and unchanged_decisions:
 		converged = True
 		assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
 		break

@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(13)
 
 # indices and sets
-num_scenarios = 20
+num_scenarios = 1000
 scenarios = range(num_scenarios)
 
 num_nodes = 4
@@ -27,11 +27,11 @@ C_g = np.array([1., 5., 5., 5.])
 # generation and flow limit
 G_max = np.array([[10., 10., 10., 10.]])
 G_max = np.tile(G_max.transpose(), (1, num_scenarios))
-G_max += np.random.uniform(-3.0, 3.0, (num_nodes, num_scenarios))
+G_max += np.random.uniform(-5.0, 5.0, (num_nodes, num_scenarios))
 
 F_max = np.array([[5., 5., 5., 5.]])
 F_max = np.tile(F_max.transpose(), (1, num_scenarios))
-F_max += np.random.uniform(-0.1, 1.0, (num_lines, num_scenarios))
+F_max += np.random.uniform(-3.0, 3.0, (num_lines, num_scenarios))
 
 F_min = -F_max
 

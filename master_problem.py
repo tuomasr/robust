@@ -56,16 +56,16 @@ def augment_master_problem(current_iteration, d):
 	m.addConstrs((g[n, o, v] + sum(incidence[l, n]*f[l, o, v] for l in lines) - d[n, v] == 0.
 				 for n in nodes for o in scenarios), name='balance')
 
-	# generation constraint for the candidate units
-	m.addConstrs((g[u, o, v] - G_max[u, o]*x[u] <= 0. for u in candidate_units for o in scenarios),
-	 			 name='maximum_candidate_generation')
+	# generation constraint for the units.
+	m.addConstrs((g[u, o, v] - G_max[u, o]*(x[u] if u in candidate_units else 1) <= 0.
+	 			  for u in units for o in scenarios), name='maximum_generation')
 
-	# flow constraint for the candidate lines
-	m.addConstrs((f[l, o, v] - F_max[l, o]*y[l] <= 0. for l in candidate_lines for o in scenarios),
-	 			 name='maximum_candidate_flow')
+	# flow constraint for the lines.
+	m.addConstrs((f[l, o, v] - F_max[l, o]*(y[l] if l in candidate_lines else 1) <= 0.
+	 			  for l in lines for o in scenarios), name='maximum_flow')
 
-	m.addConstrs((F_min[l, o]*y[l] - f[l, o, v] <= 0. for l in candidate_lines for o in scenarios),
-	 			 name='minimum_candidate_flow')
+	m.addConstrs((F_min[l, o]*(y[l] if l in candidate_lines else 1) - f[l, o, v] <= 0.
+	 			  for l in lines for o in scenarios), name='minimum_flow')
 
 
 master_problem = m
