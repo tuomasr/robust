@@ -16,10 +16,11 @@ def get_investment_cost(x, y):
 
 def add_primal_variables(iteration):
 	# add generation variables for existing and candidate units
-	g = m.addVars(units, scenarios, [iteration], name='generation', lb=0., ub=G_max)
+	g = m.addVars(units, scenarios, [iteration], name='generation', lb=0., ub=GRB.INFINITY)
 
 	# flow variables for existing and candidate lines
-	f = m.addVars(lines, scenarios, [iteration], name='flow', lb=F_min, ub=F_max)
+	# the real upper and lower bound are set as constraints.
+	f = m.addVars(lines, scenarios, [iteration], name='flow', lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
 	return g, f
 
@@ -34,7 +35,7 @@ x = m.addVars(candidate_units, vtype=GRB.BINARY, name='unit_investment')
 y = m.addVars(candidate_lines, vtype=GRB.BINARY, name='line_investment')
 
 # subproblem objective value
-theta = m.addVar(name='theta', lb=-GRB.INFINITY)
+theta = m.addVar(name='theta', lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
 # set objective. The optimal solution is no investment
 m.setObjective(get_investment_cost(x, y) + theta, GRB.MINIMIZE)

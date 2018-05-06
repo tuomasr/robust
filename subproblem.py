@@ -17,12 +17,12 @@ K = 100. 	# bad values (e.g. 10k) will lead to numerical issues
 
 # add nodewise uncertain demand variables and binary variables for deviating from the
 # nominal demand value
-d = m.addVars(nodes, name='uncertain_demand', lb=0.)
+d = m.addVars(nodes, name='uncertain_demand', lb=0., ub=GRB.INFINITY)
 u = m.addVars(units, name='demand_deviation', vtype=GRB.BINARY)
 
 # variables for linearizing bilinear terms lambda_[n, o] * u[n]
 z = m.addVars(nodes, scenarios, name='linearization_lambda_d', lb=-K, ub=K)
-lambda_tilde = m.addVars(nodes, scenarios, name='linearization_auxiliary', lb=-K, ub=K) #-0.6258
+lambda_tilde = m.addVars(nodes, scenarios, name='linearization_auxiliary', lb=-K, ub=K)
 
 # maximum and minimum generation dual variables
 beta_bar = m.addVars(units, scenarios, name='dual_maximum_generation', lb=0., ub=K)
@@ -48,6 +48,22 @@ def get_objective(x, y):
 			sum(beta_bar[u, o]*G_max[u, o]*x[u] for u in candidate_units) -
 			sum(mu_bar[l, o]*F_max[l, o]*y[l] - mu_underline[l, o]*F_min[l, o]*y[l] for l in candidate_lines)
 			for o in scenarios)
+
+	return obj
+
+
+def get_rounded_subproblem_objective_value(x, y):
+	r = lambda z: np.round(z, 3)
+
+	obj = \
+		sum(sum(r(z[n, o].x)*demand_increase[n] + r(lambda_[n, o].x)*nominal_demand[n] for n in nodes) -
+			sum(r(beta_bar[u, o].x)*G_max[u, o] for u in existing_units) -
+			sum(r(mu_bar[l, o].x)*F_max[l, o] - r(mu_underline[l, o].x)*F_min[l, o] for l in existing_lines) -
+			sum(r(beta_bar[u, o].x)*G_max[u, o]*x[u] for u in candidate_units) -
+			sum(r(mu_bar[l, o].x)*F_max[l, o]*y[l] - r(mu_underline[l, o].x)*F_min[l, o]*y[l] for l in candidate_lines)
+			for o in scenarios)
+
+	obj = r(obj)
 
 	return obj
 

@@ -1,21 +1,30 @@
 import numpy as np
 
-from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables
+from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables, \
+	get_rounded_subproblem_objective_value
 from master_problem import master_problem, augment_master_problem, get_investment_cost
 from common_data import nodes, candidate_units, candidate_lines
 
 # Configure Gurobi.
-GRB_PARAMS = [('MIPGap', 1e-8),
-			  ('FeasiblityTol', 1e-8),
-			  ('IntFeasTol', 1e-8),
+enable_custom_configuration = True
+
+GRB_PARAMS = [('MIPGap', 0.),
+			  ('FeasibilityTol', 1e-9),
+			  ('IntFeasTol', 1e-9),
 			  ('MarkowitzTol', 1e-4),
-			  ('OptimalityTol', 1e-8)]
+			  ('OptimalityTol', 1e-9),
+			  ('MIPFocus', 2),
+			  ('MIPGap', 0.),
+			  ('Presolve', 0),
+			  ('Cuts', 0),
+			  ('Aggregate', 0)]
 
-for parameter, value in GRB_PARAMS:
-	master_problem.setParam(parameter, value)
-	subproblem.setParam(parameter, value)
+if enable_custom_configuration:
+	for parameter, value in GRB_PARAMS:
+		master_problem.setParam(parameter, value)
+		subproblem.setParam(parameter, value)
 
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 50
 EPSILON = 1e-6 	# From Minguez (2016)
 # A bug or numerical issues cause LB to become higher than UB in some cases.
 # This allows some slack.
@@ -38,9 +47,17 @@ gaps = []
 
 
 def print_iteration_counter(iteration):
-	print separator
-	print 'ITERATION', iteration
-	print separator
+	print(separator)
+	print('ITERATION', iteration)
+	print(separator)
+
+
+def print_solution_quality(problem, problem_name):
+	print(separator)
+	print('%s quality and stats:' % problem_name)
+	problem.printQuality()
+	problem.printStats()
+	print(separator)
 
 
 for iteration in range(MAX_ITERATIONS):
@@ -51,6 +68,8 @@ for iteration in range(MAX_ITERATIONS):
 		augment_master_problem(iteration, d)
 
 	master_problem.optimize()
+
+	print_solution_quality(master_problem, "Master problem")
 
 	# update lower bound
 	LB = master_problem.objVal
@@ -76,8 +95,10 @@ for iteration in range(MAX_ITERATIONS):
 
 	subproblem.optimize()
 
+	print_solution_quality(subproblem, "Subproblem")
+
 	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + subproblem.objVal
+	UB = get_investment_cost(x, y) + get_rounded_subproblem_objective_value(x, y)
 
 	GAP = compute_objective_gap(LB, UB)
 
@@ -89,6 +110,7 @@ for iteration in range(MAX_ITERATIONS):
 	# add new column to d
 	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
 	d = np.concatenate((d, uncertain_variable_vals), axis=1)
+	d = np.round(d, 3)
 
 	# exit if the algorithm converged. 1) LB and UB needs to be close to each other
 	# 2) solutions to master problem and subproblem must stay constant.
@@ -97,11 +119,36 @@ for iteration in range(MAX_ITERATIONS):
 
 	unchanged_decisions = (prev_x == x) and (prev_y == y) and all(d[:, -1] == d[:, -2])
 
-	if GAP < EPSILON and unchanged_decisions:
+	if GAP < EPSILON:
 		converged = True
-		#assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
+		assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
 		break
 
+
+print_primal_variables = True
+
+if print_primal_variables:
+	print separator
+	print 'Primal variables:'
+	print separator
+	for v in master_problem.getVars():
+		print v.varName, v.x
+
+	print separator
+	print 'Uncertain variables:'
+	print separator
+	names, values = get_uncertain_variables()
+	for name, value in zip(names, values):
+		print name, value
+
+print_dual_variables = False
+
+if print_dual_variables:
+	print separator
+	print 'Dual variables:'
+	print separator
+	for v in subproblem.getVars():
+		print v.varName, v.x
 
 print separator
 
@@ -114,28 +161,8 @@ print separator
 print 'Objective value:', master_problem.objVal
 print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal)
 print separator
-print 'Primal variables:'
-print separator
-for v in master_problem.getVars():
-	print v.varName, v.x
 
-print separator
-print 'Uncertain variables:'
-print separator
-names, values = get_uncertain_variables()
-for name, value in zip(names, values):
-	print name, value
-
-print_dual_variables = False
-
-if print_dual_variables:
-	print separator
-	print 'Dual variables:'
-	print separator
-	for v in subproblem.getVars():
-		print v.varName, v.x
-
-plot_gap = True
+plot_gap = False
 
 if plot_gap:
 	from matplotlib import pyplot as plt

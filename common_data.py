@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(13)
 
 # indices and sets
-num_scenarios = 10
+num_scenarios = 20
 scenarios = range(num_scenarios)
 
 num_nodes = 4
@@ -27,11 +27,11 @@ C_g = np.array([1., 5., 5., 5.])
 # generation and flow limit
 G_max = np.array([[10., 10., 10., 10.]])
 G_max = np.tile(G_max.transpose(), (1, num_scenarios))
-G_max += np.random.uniform(-2., 2., (num_nodes, num_scenarios))
+G_max += np.random.uniform(-3.0, 3.0, (num_nodes, num_scenarios))
 
 F_max = np.array([[5., 5., 5., 5.]])
 F_max = np.tile(F_max.transpose(), (1, num_scenarios))
-F_max += np.random.uniform(-2., 2., (num_lines, num_scenarios))
+F_max += np.random.uniform(-0.1, 1.0, (num_lines, num_scenarios))
 
 F_min = -F_max
 
@@ -40,6 +40,10 @@ incidence = np.array([[-1., 1., 0., 0.],
 					  [0., -1., 1., 0.],
 					  [0., 0., -1., 1.],
 					  [1., 0., 0., -1.]])
+
+F_max = np.round(F_max, 3)
+F_min = np.round(F_min, 3)
+G_max = np.round(G_max, 3)
 
 # equal scenario weights
 weights = np.ones(num_scenarios)
