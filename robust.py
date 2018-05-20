@@ -8,7 +8,7 @@ from __future__ import print_function
 import numpy as np
 
 from common_data import hours, nodes, candidate_units, candidate_lines
-from helpers import concatenate_to_uncertain_variables_array, is_solution_unchanged
+from helpers import concatenate_to_uncertain_variables_array, is_solution_unchanged, Timer
 from master_problem import master_problem, augment_master_problem, get_investment_cost, \
 	get_investment_decisions
 from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables
@@ -36,6 +36,11 @@ if enable_custom_configuration:
 
 # Configure the algorithm for solving the robust optimization problem.
 MAX_ITERATIONS = 10
+
+# Compile solution times for the master problem and subproblem to these objects.
+master_problem_timer = Timer()
+subproblem_timer = Timer()
+
 
 # Threshold for algorithm convergence.
 EPSILON = 1e-6 	# From Minguez et al. (2016)
@@ -92,8 +97,9 @@ for iteration in range(MAX_ITERATIONS):
 	if iteration > 0:
 		augment_master_problem(iteration, d)
 
-	# Solve the master problem.
-	master_problem.optimize()
+	# Solve the master problem. The context manager measures solution time.
+	with master_problem_timer as t:
+		master_problem.optimize()
 
 	print_solution_quality(master_problem, "Master problem")
 
@@ -117,7 +123,8 @@ for iteration in range(MAX_ITERATIONS):
 	set_subproblem_objective(x, y)
 
 	# Solve the subproblem.
-	subproblem.optimize()
+	with subproblem_timer as t:
+		subproblem.optimize()
 
 	print_solution_quality(subproblem, "Subproblem")
 
@@ -147,7 +154,7 @@ for iteration in range(MAX_ITERATIONS):
 
 
 # Report solution.
-print_primal_variables = True
+print_primal_variables = False
 
 if print_primal_variables:
 	print('Primal variables:')
@@ -173,7 +180,7 @@ if print_dual_variables:
 		print(v.varName, v.x)
 
 
-# Finally, report if the algorithm converged.
+# Report if the algorithm converged.
 print(separator)
 
 if converged:
@@ -185,6 +192,11 @@ print(separator)
 print('Objective value:', master_problem.objVal)
 print('Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal))
 print(separator)
+
+# Report solution times.
+print(separator)
+print('Master problem solution times (seconds):', master_problem_timer.solution_times)
+print('Subproblem solution times (seconds):', subproblem_timer.solution_times)
 
 
 # Plot gaps when solving the problem.

@@ -4,6 +4,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
+
 import numpy as np
 
 from common_data import num_hours_per_year, candidate_units, candidate_lines
@@ -47,3 +49,24 @@ def is_solution_unchanged(prev_x, prev_y, x, y, d):
     same_d = np.allclose(d[..., -2], d[..., -1])
 
     return same_x and same_y and same_d
+
+
+class Timer:
+    """Context manager for timing a function."""
+
+    def __init__(self):
+        self._collection = list()
+
+    def __enter__(self):
+        self._start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self._end = time.time()
+        self._elapsed = self._end - self._start
+        self._collection.append(round(self._elapsed, 2))
+
+    @property
+    def solution_times(self):
+        return self._collection
+
