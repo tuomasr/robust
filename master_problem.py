@@ -59,7 +59,7 @@ def augment_master_problem(current_iteration, d):
 	g, f = add_primal_variables(v)
 
 	# Minimum value for the subproblem objective function.
-	m.addConstr(theta - sum(sum(sum(C_g[u]*g[o, t, u, v] for u in units) for t in hours) *
+	m.addConstr(theta - sum(sum(sum(C_g[t, u]*g[o, t, u, v] for u in units) for t in hours) *
 	 			weights[o] for o in scenarios) >= 0., name='minimum_subproblem_objective')
 
 	# Balance equation. Note that d[n, v] is input data from the subproblem.

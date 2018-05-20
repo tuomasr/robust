@@ -30,6 +30,12 @@ def line_built(y, h, l):
     return y[year, l] if l in candidate_lines else 1
 
 
+def node_of_unit(u):
+    # Return the node where the unit is located at.
+    # TODO: Allow multiple units in one node.
+    return u
+
+
 def concatenate_to_uncertain_variables_array(current_d, new_d):
     # Add a new column to the uncertain variables array.
     new_column = np.zeros(current_d.shape[:-1] + (1, ))

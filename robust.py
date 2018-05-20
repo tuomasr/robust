@@ -71,7 +71,6 @@ separator = '-' * 50
 
 def print_iteration_counter(iteration):
 	# Print the current iteration number.
-	print(separator)
 	print('ITERATION', iteration)
 	print(separator)
 

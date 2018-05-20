@@ -16,7 +16,7 @@ num_hours = num_years*num_hours_per_year
 years = range(num_years)
 hours = range(num_hours)
 
-num_scenarios = 10
+num_scenarios = 5
 scenarios = range(num_scenarios)
 
 num_nodes = 4
@@ -34,7 +34,8 @@ lines = candidate_lines + existing_lines
 num_lines = len(lines)
 
 # Generation costs.
-C_g = np.array([1., 5., 5., 5.])
+C_g = np.array([[1., 5., 5., 5.]])
+C_g = np.tile(C_g, (num_hours, 1))
 
 # Generation and flow limit
 G_max = np.array([[10., 10., 10., 10.]])

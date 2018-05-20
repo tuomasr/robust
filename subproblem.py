@@ -9,7 +9,7 @@ import numpy as np
 
 from common_data import hours, scenarios, nodes, units, lines, existing_units, existing_lines, \
 	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g
-from helpers import to_year, unit_built, line_built
+from helpers import to_year, unit_built, line_built, node_of_unit
 
 
 # Problem-specific data: Demand at each node in each time hour and uncertainty in it.
@@ -75,9 +75,8 @@ set_subproblem_objective(x=np.zeros((999, 999)), y=np.zeros((999, 999)))
 
 
 # Dual constraints.
-# TODO: Relax the assumption that there is exactly one generation unit at each node.
-m.addConstrs((lambda_[o, t, n] - beta_bar[o, t, n] + beta_underline[o, t, n] -
- 			  C_g[n]*weights[o] == 0. for o in scenarios for t in hours for n in nodes),
+m.addConstrs((lambda_[o, t, node_of_unit(u)] - beta_bar[o, t, u] + beta_underline[o, t, u] -
+ 			  C_g[t, u]*weights[o] == 0. for o in scenarios for t in hours for u in units),
  			 name="generation_dual_constraint")
 
 m.addConstrs((sum(incidence[l, n]*lambda_[o, t, n] for n in nodes) - mu_bar[o, t, l] +
