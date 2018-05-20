@@ -1,121 +1,118 @@
+# Subproblem formulation
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 from gurobipy import *
 import numpy as np
 
-from common_data import scenarios, nodes, units, lines, existing_units, existing_lines, \
+from common_data import hours, scenarios, nodes, units, lines, existing_units, existing_lines, \
 	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g
+from helpers import to_year, unit_built, line_built
 
 
-# problem-specific data
+# Problem-specific data: Demand at each node in each time hour and uncertainty in it.
+num_hours = len(hours)
+
 nominal_demand = np.array([3., 3., 3., 3.])
+nominal_demand = np.tile(nominal_demand, (num_hours, 1))
+
 demand_increase = np.array([1., 1., 1., 1.])
+demand_increase = np.tile(demand_increase, (num_hours, 1))
+
 uncertainty_budget = 2.
 
-# create a model
+# Create the model for the subproblem.
 m = Model("subproblem")
 
-K = 100. 	# bad values (e.g. 10k) will lead to numerical issues
+K = 100. 	# Bad values (e.g. 10k) will lead to numerical issues
 
-# add nodewise uncertain demand variables and binary variables for deviating from the
-# nominal demand value
-d = m.addVars(nodes, name='uncertain_demand', lb=0., ub=GRB.INFINITY)
-u = m.addVars(units, name='demand_deviation', vtype=GRB.BINARY)
+# Add hour- and nodewise uncertain demand variables and nodewise binary variables for deviating from
+# the nominal demand values.
+d = m.addVars(hours, nodes, name='uncertain_demand', lb=0., ub=GRB.INFINITY)
+u = m.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
 
-# variables for linearizing bilinear terms lambda_[n, o] * u[n]
-z = m.addVars(nodes, scenarios, name='linearization_lambda_d', lb=-K, ub=K)
-lambda_tilde = m.addVars(nodes, scenarios, name='linearization_auxiliary', lb=-K, ub=K)
+# Variables for linearizing bilinear terms lambda_[o, t, n] * u[n]
+z = m.addVars(scenarios, hours, nodes, name='linearization_z', lb=-K, ub=K)
+lambda_tilde = m.addVars(scenarios, hours, nodes, name='linearization_lambda_tilde', lb=-K, ub=K)
 
-# maximum and minimum generation dual variables
-beta_bar = m.addVars(units, scenarios, name='dual_maximum_generation', lb=0., ub=K)
-beta_underline = m.addVars(units, scenarios, name='dual_minimum_generation', lb=0., ub=K)
+# Maximum and minimum generation dual variables.
+beta_bar = m.addVars(scenarios, hours, units, name='dual_maximum_generation', lb=0., ub=K)
+beta_underline = m.addVars(scenarios, hours, units, name='dual_minimum_generation', lb=0., ub=K)
 
-# maximum and minimum transmission flow dual variables
-mu_bar = m.addVars(lines, scenarios, name='dual_maximum_flow', lb=0., ub=K)
-mu_underline = m.addVars(lines, scenarios, name='dual_minimum_flow', lb=0., ub=K)
+# Maximum and minimum transmission flow dual variables.
+mu_bar = m.addVars(scenarios, hours, lines, name='dual_maximum_flow', lb=0., ub=K)
+mu_underline = m.addVars(scenarios, hours, lines, name='dual_minimum_flow', lb=0., ub=K)
 
-# balance equation dual (i.e. price)
+# Balance equation dual (i.e. price).
 max_lambda_ = K 	
 min_lambda_ = -K
-lambda_ = m.addVars(nodes, scenarios, name='dual_balance', lb=min_lambda_, ub=max_lambda_)
+lambda_ = m.addVars(scenarios, hours, nodes, name='dual_balance', lb=min_lambda_, ub=max_lambda_)
 
 
-# set objective
 def get_objective(x, y):
-	# get objective function for fixed values of x and y
-	obj = \
-		sum(sum(z[n, o]*demand_increase[n] + lambda_[n, o]*nominal_demand[n] for n in nodes) -
-			sum(beta_bar[u, o]*G_max[u, o] for u in existing_units) -
-			sum(mu_bar[l, o]*F_max[l, o] - mu_underline[l, o]*F_min[l, o] for l in existing_lines) -
-			sum(beta_bar[u, o]*G_max[u, o]*x[u] for u in candidate_units) -
-			sum(mu_bar[l, o]*F_max[l, o]*y[l] - mu_underline[l, o]*F_min[l, o]*y[l] for l in candidate_lines)
-			for o in scenarios)
+	# Define subproblem objective function for fixed x and y (unit and line investments).
+	obj = sum(sum(z[o, t, n]*demand_increase[t, n] + lambda_[o, t, n]*nominal_demand[t, n]
+		 		  for n in nodes) -
+			  sum(beta_bar[o, t, u]*G_max[o, t, u]*unit_built(x, t, u) for u in units) -
+			  sum((mu_bar[o, t, l]*F_max[o, t, l] - mu_underline[o, t, l]*F_min[o, t, l]) *
+			 	  line_built(y, t, l) for l in lines)
+			  for t in hours for o in scenarios)
 
 	return obj
 
 
-def get_rounded_subproblem_objective_value(x, y):
-	r = lambda z: np.round(z, 3)
-
-	obj = \
-		sum(sum(r(z[n, o].x)*demand_increase[n] + r(lambda_[n, o].x)*nominal_demand[n] for n in nodes) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o] for u in existing_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o] - r(mu_underline[l, o].x)*F_min[l, o] for l in existing_lines) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o]*x[u] for u in candidate_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o]*y[l] - r(mu_underline[l, o].x)*F_min[l, o]*y[l] for l in candidate_lines)
-			for o in scenarios)
-
-	obj = r(obj)
-
-	return obj
-
-
-def set_subproblem_objective(x=np.zeros(100, dtype=np.float32), y=np.zeros(100, dtype=np.float32)):
-	# set objective function for the subproblem
+def set_subproblem_objective(x, y):
+	# Set objective function for the subproblem for fixed x and y (unit and line investments).
 	obj = get_objective(x, y)
 
 	m.setObjective(obj, GRB.MAXIMIZE)
 
 
-set_subproblem_objective()
+# Set initial subproblem objective with dummy investment decisions (i.e. no investment).
+set_subproblem_objective(x=np.zeros((999, 999)), y=np.zeros((999, 999)))
 
 
-# dual constraints
-m.addConstrs((lambda_[n, o] - beta_bar[n, o] + beta_underline[n, o] - C_g[n]*weights[o] == 0.
- 			 for n in nodes for o in scenarios), name="generation_dual_constraint")
+# Dual constraints.
+# TODO: Relax the assumption that there is exactly one generation unit at each node.
+m.addConstrs((lambda_[o, t, n] - beta_bar[o, t, n] + beta_underline[o, t, n] -
+ 			  C_g[n]*weights[o] == 0. for o in scenarios for t in hours for n in nodes),
+ 			 name="generation_dual_constraint")
 
-m.addConstrs((sum(incidence[l, n]*lambda_[n, o] for n in nodes) - mu_bar[l, o] +
- 			  mu_underline[l, o] == 0. for l in lines for o in scenarios),
+m.addConstrs((sum(incidence[l, n]*lambda_[o, t, n] for n in nodes) - mu_bar[o, t, l] +
+ 			  mu_underline[o, t, l] == 0. for o in scenarios for t in hours for l in lines),
  			  name='flow_dual_constraint')
 
-# constraints defining the uncertainty set
-m.addConstrs((d[n] - nominal_demand[n] - u[n]*demand_increase[n] == 0. for n in nodes),
-			 name='uncertainty_set_demand_increase')
+# Constraints defining the uncertainty set.
+m.addConstrs((d[t, n] - nominal_demand[t, n] - u[n]*demand_increase[t, n] == 0.
+ 			  for t in hours for n in nodes), name='uncertainty_set_demand_increase')
 
 m.addConstr(sum(u[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
 
-# constraints for linearizing lambda_[n, o] * d[n]
-m.addConstrs((z[n, o] - lambda_[n, o] + lambda_tilde[n, o] == 0. for n in nodes for o in scenarios),
-			 name='linearization_z_definition')
+# Constraints for linearizing lambda_[n, o] * d[n].
+m.addConstrs((z[o, t, n] - lambda_[o, t, n] + lambda_tilde[o, t, n] == 0.
+ 			  for o in scenarios for t in hours for n in nodes), name='linearization_z_definition')
 
-m.addConstrs((u[n]*min_lambda_ - z[n, o] <= 0. for n in nodes for o in scenarios),
-			 name='linearization_z_bounds1')
+m.addConstrs((u[n]*min_lambda_ - z[o, t, n] <= 0. for o in scenarios for t in hours for n in nodes),
+			 name='linearization_z_lb')
 
-m.addConstrs((z[n, o] - u[n]*max_lambda_ <= 0. for n in nodes for o in scenarios),
-			 name='linearization_z_bounds2')
+m.addConstrs((z[o, t, n] - u[n]*max_lambda_ <= 0. for o in scenarios for t in hours for n in nodes),
+			 name='linearization_z_ub')
 
-m.addConstrs(((1. - u[n])*min_lambda_ - lambda_tilde[n, o] <= 0. for n in nodes
-			 for o in scenarios), name='lambda_tilde_bounds1')
+m.addConstrs(((1. - u[n])*min_lambda_ - lambda_tilde[o, t, n] <= 0.
+			  for o in scenarios for t in hours for n in nodes), name='lambda_tilde_lb')
 
-m.addConstrs((lambda_tilde[n, o] - (1. - u[n])*max_lambda_ <= 0. for n in nodes
-			 for o in scenarios), name='lambda_tilde_bounds2')
+m.addConstrs((lambda_tilde[o, t, n] - (1. - u[n])*max_lambda_ <= 0.
+ 			  for o in scenarios for t in hours for n in nodes), name='lambda_tilde_ub')
 
+
+# Set the subproblem model to a variable that can be imported elsewhere.
 subproblem = m
 
 
 def get_uncertain_variables():
-	# get the names and values of uncertain variables of the subproblem
-	uncertain_variables = [v for v in subproblem.getVars() if 'uncertain_demand' in v.varName]
+	# Get the indices and values of uncertain variables of the subproblem.
+	current_d = {key: np.round(value.x) for key, value in d.items()}
 
-	names = np.array([v.varName for v in uncertain_variables])
-	values = np.array([v.x for v in uncertain_variables])
-
-	return names, values
+	return current_d
