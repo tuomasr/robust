@@ -36,6 +36,8 @@ Keywords here
 	$\Lambda^D$ 				& demand uncertainty budget \\
 	$\Lambda^{min/max}$			& minimum/maximum price
 	\multicolumn{2}{l}{\textbf{Variables}} \\
+	$x_u$ 							& equal 1 if investment is made into generation unit $u$ \\
+	$y_\ell$ 						& equal 1 if investment is made into transmission line $\ell$ \\
 	$d_n$ 							& uncertain demand at node $n$ \\
 	$z_{o,n}$ 						& auxiliary variables for linearizing $\lambda_{o, n} d_n$ \\
 	$\lambda_{o,n}$ 				& price in condition $o$ at node $n$ \\
@@ -97,10 +99,10 @@ where $\Omega_{o, \nu}^{M} = \{g_{o,u,\nu'} \, \forall u, f_{o, \ell, \nu'} \, \
 The subproblem is
 
 \begin{align}
-\label{sub_obj} \underset{\Phi^{L2}, \Omega_o^{S}}{\text{maximize}} &\sum\limits_o \Bigg[ \sum\limits_n \lambda_{o, n} d_n + \nonumber \\
-&\sum\limits_{u \in \Psi^G} \bar{\beta}_{o,u} G_{o,u}^{max} + \nonumber \\
-&\sum\limits_{\ell \in \Psi^L} \bar{\mu}_{o,\ell} F_{o,\ell}^{max} - \underline{\mu}_{o,\ell} F_{o,\ell}^{min} + \nonumber \\
-&\sum\limits_{u \in \Psi^{G+}} \bar{\beta}_{o,u} G_{o,u}^{max} x_u^* + \nonumber \\
+\label{sub_obj} \underset{\Phi^{L2}, \Omega_o^{S}}{\text{maximize}} &\sum\limits_o \Bigg[ \sum\limits_n \lambda_{o, n} d_n - \nonumber \\
+&\sum\limits_{u \in \Psi^G} \bar{\beta}_{o,u} G_{o,u}^{max} - \nonumber \\
+&\sum\limits_{\ell \in \Psi^L} \bar{\mu}_{o,\ell} F_{o,\ell}^{max} - \underline{\mu}_{o,\ell} F_{o,\ell}^{min} - \nonumber \\
+&\sum\limits_{u \in \Psi^{G+}} \bar{\beta}_{o,u} G_{o,u}^{max} x_u^* - \nonumber \\
 &\sum\limits_{\ell \in \Psi^{L+}} \left( \bar{\mu}_{o,\ell} F_{o,\ell}^{max} - \underline{\mu}_{o,\ell} F_{o,\ell}^{min} \right) y_\ell^* \Bigg]
 \end{align}
 \begin{align}
@@ -111,7 +113,7 @@ The subproblem is
 \end{align}
 where $\Omega^{S}_o = \{ \lambda_{o, n} \forall n, \bar{\beta}_{o,u} \forall u, \underline{\beta}_{o,u} \forall u, \bar{\mu}_{o,\ell} \forall \ell, \underline{\mu}_{o,\ell} \forall \ell \}, \forall o$. $x_u^* \, \forall u \in \Psi^{G+}$ and $y_\ell^* \, \forall \ell \in \Psi^{L+}$ are input data obtained from the previous solution of the master problem. The index $u(n)$ denotes the node at which unit $u$ is located.
 
-The product of a continuous and a binary variable $\lambda_{o, n} d_n$ in the objective function (\ref{sub_obj}) is linearized exactly with $\lambda_{o, n} d_n = z_{o, n} \hat{D}_n + \lambda_{o, n} \tilde{D}_n$ and by adding the following constraints to the subproblem
+The subproblem can be solved directly as a MIQP. Alternatively, the product of a continuous and a binary variable $\lambda_{o, n} d_n$ in the objective function (\ref{sub_obj}) can be linearized exactly with $\lambda_{o, n} d_n = z_{o, n} \hat{D}_n + \lambda_{o, n} \tilde{D}_n$ and by adding the following constraints to the subproblem
 
 \begin{align}
 &z_{o,n} = \lambda_{o, n} - \tilde{\lambda}_{o, n} \forall o, n \\
