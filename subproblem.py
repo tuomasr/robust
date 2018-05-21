@@ -31,9 +31,9 @@ K = 100. 	# Bad values (e.g. 10k) will lead to numerical issues
 # Add hour- and nodewise uncertain demand variables and nodewise binary variables for deviating from
 # the nominal demand values.
 d = m.addVars(hours, nodes, name='uncertain_demand', lb=0., ub=GRB.INFINITY)
-u = m.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
+w = m.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
 
-# Variables for linearizing bilinear terms lambda_[o, t, n] * u[n]
+# Variables for linearizing bilinear terms lambda_[o, t, n] * w[n]
 z = m.addVars(scenarios, hours, nodes, name='linearization_z', lb=-K, ub=K)
 lambda_tilde = m.addVars(scenarios, hours, nodes, name='linearization_lambda_tilde', lb=-K, ub=K)
 
@@ -84,25 +84,25 @@ m.addConstrs((sum(incidence[l, n]*lambda_[o, t, n] for n in nodes) - mu_bar[o, t
  			  name='flow_dual_constraint')
 
 # Constraints defining the uncertainty set.
-m.addConstrs((d[t, n] - nominal_demand[t, n] - u[n]*demand_increase[t, n] == 0.
+m.addConstrs((d[t, n] - nominal_demand[t, n] - w[n]*demand_increase[t, n] == 0.
  			  for t in hours for n in nodes), name='uncertainty_set_demand_increase')
 
-m.addConstr(sum(u[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
+m.addConstr(sum(w[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
 
 # Constraints for linearizing lambda_[n, o] * d[n].
 m.addConstrs((z[o, t, n] - lambda_[o, t, n] + lambda_tilde[o, t, n] == 0.
  			  for o in scenarios for t in hours for n in nodes), name='linearization_z_definition')
 
-m.addConstrs((u[n]*min_lambda_ - z[o, t, n] <= 0. for o in scenarios for t in hours for n in nodes),
+m.addConstrs((w[n]*min_lambda_ - z[o, t, n] <= 0. for o in scenarios for t in hours for n in nodes),
 			 name='linearization_z_lb')
 
-m.addConstrs((z[o, t, n] - u[n]*max_lambda_ <= 0. for o in scenarios for t in hours for n in nodes),
+m.addConstrs((z[o, t, n] - w[n]*max_lambda_ <= 0. for o in scenarios for t in hours for n in nodes),
 			 name='linearization_z_ub')
 
-m.addConstrs(((1. - u[n])*min_lambda_ - lambda_tilde[o, t, n] <= 0.
+m.addConstrs(((1. - w[n])*min_lambda_ - lambda_tilde[o, t, n] <= 0.
 			  for o in scenarios for t in hours for n in nodes), name='lambda_tilde_lb')
 
-m.addConstrs((lambda_tilde[o, t, n] - (1. - u[n])*max_lambda_ <= 0.
+m.addConstrs((lambda_tilde[o, t, n] - (1. - w[n])*max_lambda_ <= 0.
  			  for o in scenarios for t in hours for n in nodes), name='lambda_tilde_ub')
 
 

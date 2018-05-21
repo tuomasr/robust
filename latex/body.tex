@@ -11,7 +11,7 @@ Keywords here
 
 \section*{Notation}
 
-\begin{supertabular}{p{2cm} p{6cm}}
+\begin{supertabular}{p{1.5cm} p{6.5cm}}
 	\multicolumn{2}{l}{\textbf{Indices}} \\
 	$n$ 					& node \\
 	$u$ 					& generation unit \\
@@ -34,12 +34,14 @@ Keywords here
 	$\hat{D}_{\tau, n}$  	& demand increase at node $n$ in period $\tau$ \\
 	$C^x_{t, u}$ 			& investment cost of candidate unit $u$ in period $t$ \\
 	$C^y_{t, \ell}$ 		& investment cost of candidate transmission line $\ell$ in period $t$ \\
-	$C^G_{\tau, u}$ 		& generation cost of unit $u$ in period $\tau$ \\
+	$C^g_{\tau, u}$ 		& generation cost of unit $u$ in period $\tau$ \\
 	$\Lambda^D$ 			& demand uncertainty budget \\
-	$\Lambda^{min/max}$		& minimum/maximum price
-	\multicolumn{2}{l}{\textbf{Variables}} \\
+	$\Lambda^{min/max}$		& minimum/maximum price \\
+	\multicolumn{2}{l}{\textbf{Binary variables}} \\
 	$x_{t, u}$ 							& equal 1 if investment is made into generation unit $u$ in period $t$ \\
 	$y_{t, \ell}$ 						& equal 1 if investment is made into transmission line $\ell$ in period $t$ \\
+	$w_n$ 								& equal 1 if demand is increased from the nominal level at node $n$ \\
+	\multicolumn{2}{l}{\textbf{Continuous variables}} \\
 	$d_{\tau, n}$ 						& uncertain demand at node $n$ in period $\tau$ \\
 	$z_{o, \tau, n}$ 					& auxiliary variables for linearizing $\lambda_{o, \tau, n} d_{\tau, n}$ \\
 	$\lambda_{o, \tau, n}$ 				& price in condition $o$ at node $n$ in period $\tau$ \\
@@ -49,8 +51,7 @@ Keywords here
 	$\bar{\beta}_{o, \tau, u}$ 			& dual variable for maximum generation of unit $u$ in condition $o$ in period $\tau$ \\
 	$\underline{\beta}_{o, \tau, u}$ 	& dual variable for minimum generation of unit $u$ in condition $o$ in period $\tau$ \\
 	$\bar{\mu}_{o, \tau, \ell}$ 		& dual variable for maximum flow in line $\ell$ in condition $o$ in period $\tau$ \\
-	$\underline{\mu}_{o, \tau, \ell}$ 	& dual variable for minimum flow in line $\ell$ in condition $o$ in period $\tau$ \\
-	$u_n$ 								& equal 1 if demand is increased from the nominal level at node $n$
+	$\underline{\mu}_{o, \tau, \ell}$ 	& dual variable for minimum flow in line $\ell$ in condition $o$ in period $\tau$
 \end{supertabular}
 
 \section{Mathematical formulation}
@@ -66,7 +67,7 @@ The stochastic robust optimization problem is
 \end{align}
 where $\Phi^{L1} = \{ x_{t, u} \, \forall t, u \in  \Psi^{G+}, y_{t, \ell} \, \forall t, \ell \in  \Psi^{L+} \}$, $\Phi^{L2} = \{ d_{\tau, n} \, \forall \tau, n \}$, and $\Phi^{L3} = \{ g_{o, \tau, u} \, \forall o, \tau, u, f_{o, \tau, \ell} \, \forall o, \tau, \ell \}$. The uncertainty set $\Omega$ is given by
 \begin{align}
-\Omega = \{ &d_{\tau, n} = \tilde{D}_{\tau, n} + u_n \hat{D}_{\tau, n} & \forall \tau, n \nonumber \\
+\Omega = \{ &d_{\tau, n} = \tilde{D}_{\tau, n} + w_n \hat{D}_{\tau, n} & \forall \tau, n \nonumber \\
 \label{uncertainty_set}&\sum\limits_n d_{\tau, n} \leq \Lambda^D & \forall \tau \}.
 \end{align}
 
@@ -116,8 +117,8 @@ where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located.
 The subproblem can be solved directly as a MIQP. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable $\lambda_{o, \tau, n} d_{\tau, n}$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n}$ and by adding the following constraints to the subproblem
 \begin{align}
 &z_{o, \tau, n} = \lambda_{o, \tau, n} - \tilde{\lambda}_{o, \tau, n} \quad \forall o, \tau, n \\
-&\Lambda^{min} u_n \leq z_{o, \tau, n} \leq \Lambda^{max} u_n \\
-&\Lambda^{min} (1 - u_n) \leq \tilde{\lambda}_{o, \tau, n} \leq \Lambda^{max} (1 - u_n)
+&\Lambda^{min} w_n \leq z_{o, \tau, n} \leq \Lambda^{max} w_n \\
+&\Lambda^{min} (1 - w_n) \leq \tilde{\lambda}_{o, \tau, n} \leq \Lambda^{max} (1 - w_n)
 \end{align}
 
 Consequently, the decision variables $d_{\tau, n} \, \forall \tau, n$ are replaced with $\{ z_{o, \tau, n} \forall o, \tau, n, \tilde{\lambda}_{o, \tau, n} \forall o, \tau, n \}$ in the subproblem.
