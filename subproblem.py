@@ -8,8 +8,10 @@ from gurobipy import *
 import numpy as np
 
 from common_data import hours, scenarios, nodes, units, lines, existing_units, existing_lines, \
-	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g
-from helpers import to_year, unit_built, line_built, node_of_unit
+	candidate_units, candidate_lines, G_max, F_max, F_min, G_ramp_max, G_ramp_min, incidence, \
+	weights, C_g
+from helpers import to_year, unit_built, line_built, node_of_unit, is_year_fist_hour, \
+	is_year_last_hour
 
 
 # Problem-specific data: Demand at each node in each time hour and uncertainty in it.
@@ -41,6 +43,11 @@ lambda_tilde = m.addVars(scenarios, hours, nodes, name='linearization_lambda_til
 beta_bar = m.addVars(scenarios, hours, units, name='dual_maximum_generation', lb=0., ub=K)
 beta_underline = m.addVars(scenarios, hours, units, name='dual_minimum_generation', lb=0., ub=K)
 
+# Maximum up- and downramp dual variables.
+beta_ramp_bar = m.addVars(scenarios, hours, units, name='dual_maximum_ramp_upwards', lb=0., ub=K)
+beta_ramp_underline = m.addVars(scenarios, hours, units, name='dual_maximum_ramp_downwards',
+ 								lb=0., ub=K)
+
 # Maximum and minimum transmission flow dual variables.
 mu_bar = m.addVars(scenarios, hours, lines, name='dual_maximum_flow', lb=0., ub=K)
 mu_underline = m.addVars(scenarios, hours, lines, name='dual_minimum_flow', lb=0., ub=K)
@@ -57,7 +64,9 @@ def get_objective(x, y):
 		 		  for n in nodes) -
 			  sum(beta_bar[o, t, u]*G_max[o, t, u]*unit_built(x, t, u) for u in units) -
 			  sum((mu_bar[o, t, l]*F_max[o, t, l] - mu_underline[o, t, l]*F_min[o, t, l]) *
-			 	  line_built(y, t, l) for l in lines)
+			 	  line_built(y, t, l) for l in lines) -
+			  sum(beta_ramp_bar[o, t, u]*G_ramp_max[o, t,  u]*unit_built(x, t, u) for u in units) +
+			  sum(beta_ramp_underline[o, t, u]*G_ramp_min[o, t, u]*unit_built(x, t, u) for u in units)
 			  for t in hours for o in scenarios)
 
 	return obj
@@ -76,7 +85,11 @@ set_subproblem_objective(x=np.zeros((999, 999)), y=np.zeros((999, 999)))
 
 # Dual constraints.
 m.addConstrs((lambda_[o, t, node_of_unit(u)] - beta_bar[o, t, u] + beta_underline[o, t, u] -
- 			  C_g[t, u]*weights[o] == 0. for o in scenarios for t in hours for u in units),
+			  (beta_ramp_bar[o, t - 1, u] if not is_year_fist_hour(t) else 0.) +
+			  (beta_ramp_bar[o, t, u] if not is_year_last_hour(t) else 0.) +
+			  (beta_ramp_underline[o, t - 1, u] if not is_year_fist_hour(t) else 0.) -
+			  (beta_ramp_underline[o, t, u] if not is_year_last_hour(t) else 0.) -
+ 			  C_g[o, t, u]*weights[o] == 0. for o in scenarios for t in hours for u in units),
  			 name="generation_dual_constraint")
 
 m.addConstrs((sum(incidence[l, n]*lambda_[o, t, n] for n in nodes) - mu_bar[o, t, l] +

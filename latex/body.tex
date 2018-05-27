@@ -29,14 +29,20 @@ Keywords here
 	$\Omega$ 				& uncertainty set \\
 	$\Xi$ 					& feasibility set \\
 	\multicolumn{2}{l}{\textbf{Parameters}} \\
-	$W_o$ 					& the weight of operating condition $o$ \\
-	$\tilde{D}_{\tau, n}$ 	& nominal demand at node $n$ in period $\tau$ \\
-	$\hat{D}_{\tau, n}$  	& demand increase at node $n$ in period $\tau$ \\
-	$C^x_{t, u}$ 			& investment cost of candidate unit $u$ in period $t$ \\
-	$C^y_{t, \ell}$ 		& investment cost of candidate transmission line $\ell$ in period $t$ \\
-	$C^g_{\tau, u}$ 		& generation cost of unit $u$ in period $\tau$ \\
-	$\Lambda^D$ 			& demand uncertainty budget \\
-	$\Lambda^{min/max}$		& minimum/maximum price \\
+	$W_o$ 						& the weight of operating condition $o$ \\
+	$\tilde{D}_{\tau, n}$ 		& nominal demand at node $n$ in period $\tau$ \\
+	$\hat{D}_{\tau, n}$  		& demand increase at node $n$ in period $\tau$ \\
+	$C^x_{t, u}$ 				& investment cost of candidate unit $u$ in period $t$ \\
+	$C^y_{t, \ell}$ 			& investment cost of candidate transmission line $\ell$ in period $t$ \\
+	$C^g_{o, \tau, u}$ 			& generation cost of unit $u$ in condition $o$ in period $\tau$ \\
+	$G^{max}_{o, \tau, u}$ 		& maximum generation of unit $u$ in condition $o$ in period $\tau$ \\
+	$G^{ramp,max}_{o, \tau, u}$ & maximum ramp up of unit $u$ in condition $o$ in period $\tau$ \\
+	$G^{ramp,min}_{o, \tau, u}$ & maximum ramp down of unit $u$ in condition $o$ in period $\tau$ \\
+	$F^{max}_{o, \tau, \ell}$ 	& maximum flow on line $\ell$ in condition $o$ in period $\tau$ \\
+	$F^{min}_{o, \tau, \ell}$ 	& minimum flow on line $\ell$ in condition $o$ in period $\tau$ \\
+	$\Lambda^D$ 				& demand uncertainty budget \\
+	$\Lambda^{min/max}$			& minimum/maximum price \\
+	$\Tau$ 						& Last time step in the subproblem \\
 	\multicolumn{2}{l}{\textbf{Binary variables}} \\
 	$\hat{x}_{t, u}$ 	& equal 1 if investment is made into generation unit $u$ in period $t$ \\
 	$\hat{y}_{t, \ell}$ & equal 1 if investment is made into transmission line $\ell$ in period $t$ \\
@@ -51,7 +57,9 @@ Keywords here
 	$f_{o, \tau, \ell, \nu} 			& transmission flow in line $\ell$ in condition $o$ in period $\tau$ at iteration $\nu$ \\
 	$g_{o, \tau, u, \nu}$  				& generation at unit $u$ in condition $o$ in period $\tau$ at iteration $\nu$ \\
 	$\bar{\beta}_{o, \tau, u}$ 			& dual variable for maximum generation of unit $u$ in condition $o$ in period $\tau$ \\
+	$\bar{\beta}_{o, \tau, u}^{ramp}$ 	& dual variable for maximum ramp up of unit $u$ in condition $o$ in period $\tau$ \\
 	$\underline{\beta}_{o, \tau, u}$ 	& dual variable for minimum generation of unit $u$ in condition $o$ in period $\tau$ \\
+	$\underline{\beta}_{o, \tau, u}^{ramp}$& dual variable for maximum ramp down of unit $u$ in condition $o$ in period $\tau$ \\
 	$\bar{\mu}_{o, \tau, \ell}$ 		& dual variable for maximum flow in line $\ell$ in condition $o$ in period $\tau$ \\
 	$\underline{\mu}_{o, \tau, \ell}$ 	& dual variable for minimum flow in line $\ell$ in condition $o$ in period $\tau$
 \end{supertabular}
@@ -65,7 +73,7 @@ The stochastic robust optimization problem is
 
 \begin{align}
 &\label{saro_obj} \underset{\Phi^{L1}}{\text{min}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] +  \\
-&\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C^g_{\tau, u} g_{o, \tau, u} \\
+&\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C^g_{o, \tau, u} g_{o, \tau, u} \\
 &\text{subject to} \nonumber \\
 &\label{master_constraint_first} x_{t, u} \leq \sum\limits_{t' = 1}^{t} \hat{x}_{t, u} 	\quad \forall t, u \in \Psi_n^{G+} \\
 &\label{master_constraint_last} y_{t, \ell} \leq \sum\limits_{t' = 1}^{t} \hat{y}_{t, \ell} 	\quad \forall t, \ell \in \Psi^{L+}
@@ -78,11 +86,12 @@ where $\Phi^{L1} = \{ x_{t, u} \, \forall t, u \in  \Psi^{G+}, y_{t, \ell} \, \f
 
 Given the optimal values $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$, $y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$, and $d_{\tau, n}^* \, \forall \tau, n$, the feasibility set $\Xi(g_{o, \tau, u}, f_{o, \tau, \ell})$ is
 \begin{align}
-\{ &\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u} + \sum\limits_{\ell} Y_{\ell, n} f_{o, \tau, \ell} = d_{\tau, n}^* & \forall o, \tau, n\\
-&0 \leq g_{o, \tau, u} \leq G_{o, \tau, u}^{max} & \forall o, \tau, u \in \Psi_n^G\\
-&F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} & \forall o, \tau, \ell \in \Psi^L \\
-&0 \leq g_{o, \tau, u} \leq G_{o, \tau, u}^{max} x_{t(\tau), u}^* & \forall o, \tau, u \in \Psi_n^{G+} \\
-&F_{o, \tau, \ell}^{min} y_{t(\tau), \ell}^* \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell}^* & \forall o, \tau, \ell \in \Psi^{L+} \},
+\{ &\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u} + \sum\limits_{\ell} Y_{\ell, n} f_{o, \tau, \ell} = d_{\tau, n}^* \quad \forall o, \tau, n\\
+&0 \leq g_{o, \tau, u} \leq G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G \\
+&G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u} - g_{o, \tau, u} \leq G^{ramp,max}_{o, \tau, u} 	\quad \forall o, \tau < \Tau, u \\
+&F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L \\
+&0 \leq g_{o, \tau, u} \leq G_{o, \tau, u}^{max} x_{t(\tau), u}^* \quad \forall o, \tau, u \in \Psi_n^{G+} \\
+&F_{o, \tau, \ell}^{min} y_{t(\tau), \ell}^* \leq f_{o, \tau, \ell} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell}^* \quad \forall o, \tau, \ell \in \Psi^{L+} \},
 \end{align}
 where the notation $t(\tau)$ indicates to which master problem time step $t$ the subproblem time step $\tau$ is assigned to.
 
@@ -94,9 +103,10 @@ At iteration $\nu$, we have $\Omega_{o, \tau, \nu}^{M} = \{ g_{o, \tau, u, \nu'}
 &\label{master_obj} \underset{\Phi^{L1}, \Omega_{o, \tau, \nu}^{M}, \theta}{\text{minimize}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \theta \\
 &\text{subject to} \nonumber \\
 &\text{Eqs. } (\ref{master_constraint_first}) - (\ref{master_constraint_last}) \\
-&\theta \geq \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C_{\tau, u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
+&\theta \geq \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C_{o, \tau, u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
 &\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u, \nu'} + \sum\limits_{\ell} Y_{\ell, n} f_{o, \tau, \ell, \nu'} = d_{\tau, n, \nu'}^* \quad \forall o, \tau, n, \nu' \leq \nu \\
 &0 \leq g_{o, \tau, u, \nu'} \leq G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G, \nu' \leq \nu \\
+&G^{ramp,min}_{o, \tau, u} \leq g_{o, \tau + 1, u, \nu'} - g_{o, \tau, u, \nu'} \leq G^{ramp,max}_{o, \tau, u} 	\quad \forall o, \tau < \Tau, u, \nu' \leq \nu \\
 &F_{o, \tau, \ell}^{min} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} \quad \forall o, \tau, \ell \in \Psi^L, \nu' \leq \nu \\
 &0 \leq g_{o, \tau, u, \nu'} \leq G_{o, \tau, u}^{max} x_{t(\tau), u} \quad \forall o, \tau, u \in \Psi_n^{G+}, \nu' \leq \nu \\
 &F_{o, \tau, \ell}^{min} y_{t(\tau), \ell} \leq f_{o, \tau, \ell, \nu'} \leq F_{o, \tau, \ell}^{max} y_{t(\tau), \ell} \quad \forall o, \tau, \ell \in \Psi^{L+}, \nu' \leq \nu
@@ -104,21 +114,25 @@ At iteration $\nu$, we have $\Omega_{o, \tau, \nu}^{M} = \{ g_{o, \tau, u, \nu'}
 
 \subsection{Subproblem}
 
-For the subproblem, we set $\Omega^{S}_{o, \tau} = \{ \lambda_{o, \tau, n} \quad \forall o, \tau, n, $ $\bar{\beta}_{o, \tau, u} \, \forall o, \tau, u, \underline{\beta}_{o, \tau, u} \,\, \forall o, \tau, u, \,\, \bar{\mu}_{o, \tau, \ell} \,\, \forall o, \tau, \ell, \,\, \underline{\mu}_{o, \tau, \ell} \,\, \forall o, \tau, \ell \}$. With $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$ and $y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$ as input data obtained from the previous solution of the master problem, the subproblem is
+For the subproblem, we set $\Omega^{S}_{o, \tau} = \{ \lambda_{o, \tau, n} \quad \forall o, \tau, n, $ $\bar{\beta}_{o, \tau, u} \, \forall o, \tau, u, \underline{\beta}_{o, \tau, u} \,\, \forall o, \tau, u, \,\, \bar{\beta}_{o, \tau, u}^{ramp} \forall o, \tau, u, \,\, \underline{\beta}_{o, \tau, u}^{ramp} \forall o, \tau, u,$ $\bar{\mu}_{o, \tau, \ell} \,\, \forall o, \tau, \ell, \,\, \underline{\mu}_{o, \tau, \ell} \,\, \forall o, \tau, \ell \}$. With $x_{t, u}^* \, \forall t, u \in \Psi^{G+}$ and $y_{t, \ell}^* \, \forall t, \ell \in \Psi^{L+}$ as input data obtained from the previous solution of the master problem, the subproblem is
 \begin{align}
 \label{sub_obj} \underset{\Phi^{L2}, \Omega_{o, \tau}^{S}}{\text{maximize}} &\sum\limits_o \sum\limits_{\tau} \Bigg[ \sum\limits_n \lambda_{o, \tau, n} d_{\tau, n} - \nonumber \\
 &\sum\limits_{u \in \Psi^G} \bar{\beta}_{o, \tau, u} G_{o, \tau, u}^{max} - \nonumber \\
 &\sum\limits_{\ell \in \Psi^L} \bar{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{max} - \underline{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{min} - \nonumber \\
 &\sum\limits_{u \in \Psi^{G+}} \bar{\beta}_{o, \tau, u} G_{o, \tau, u}^{max} x_{t(\tau), u}^* - \nonumber \\
-&\sum\limits_{\ell \in \Psi^{L+}} \left( \bar{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{max} - \underline{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{min} \right) y_{t(\tau), \ell}^* \Bigg]
+&\sum\limits_{\ell \in \Psi^{L+}} \left( \bar{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{max} - \underline{\mu}_{o, \tau, \ell} F_{o, \tau, \ell}^{min} \right) y_{t(\tau), \ell}^* - \nonumber \\
+&\sum\limits_{u} \bar{\beta}_{o, \tau, u}^{ramp} G^{ramp,max}_{o, \tau, u} + \nonumber \\
+&\sum\limits_{u} \underline{\beta}_{o, \tau, u}^{ramp} G^{ramp,min}_{o, \tau, u} \Bigg]
 \end{align}
 \begin{align}
 &\text{subject to} \nonumber \\
-&\lambda_{o, \tau, n(u)} - \bar{\beta}_{o, \tau, u} + \underline{\beta}_{o, \tau, u} = C^g_{\tau, u}  W_o \quad \forall o, \tau, u \\
+&\lambda_{o, \tau, n(u)} - \bar{\beta}_{o, \tau, u} + \underline{\beta}_{o, \tau, u} - \nonumber \\
+&\bar{\beta}_{o, \tau - 1, u}^{ramp} + \bar{\beta}_{o, \tau, u}^{ramp} + \nonumber \\
+&\label{sub_constr1}\underline{\beta}_{o, \tau - 1, u}^{ramp} - \underline{\beta}_{o, \tau, u}^{ramp} = C^g_{o, \tau, u}  W_o \quad \forall o, \tau, u \\
 &\sum\limits_n Y_{\ell, n} \lambda_{o, \tau, n} - \bar{\mu}_{o, \tau, \ell} + \underline{\mu}_{o, \tau, \ell} = 0 \quad \forall o, \tau, \ell \\
 &\text{Eqs. } (\ref{uncertainty_set}),
 \end{align}
-where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located.
+where the notation $n(u)$ indicates the node $n$ at which unit $u$ is located. In Eq. (\ref{sub_constr1}) terms $\bar{\beta}_{o, \tau - 1, u}^{ramp}$ and $\underline{\beta}_{o, \tau - 1, u}^{ramp}$ are ignored for $\tau = 0$.
 
 The subproblem can be solved directly as a MIQP. Alternatively, the subproblem can be re-formulated as an MILP by linearizing the product of a continuous and a binary variable $\lambda_{o, \tau, n} d_{\tau, n}$ in the objective function (\ref{sub_obj}) exactly with $\lambda_{o, \tau, n} d_{\tau, n} = z_{o, \tau, n} \hat{D}_{\tau, n} + \lambda_{o, \tau, n} \tilde{D}_{\tau, n}$ and by adding the following constraints to the subproblem
 \begin{align}

@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 
-from common_data import num_hours_per_year, candidate_units, candidate_lines
+from common_data import years, num_hours_per_year, candidate_units, candidate_lines
 
 
 def to_year(h):
@@ -34,6 +34,38 @@ def node_of_unit(u):
     # Return the node where the unit is located at.
     # TODO: Allow multiple units in one node.
     return u
+
+
+def get_ramp_hours():
+    # Return the hours for which ramp constraints are defined. Exclude the last hour in each year
+    # because the constraint is defined as lb <= g_{t+1} - g_t <= ub. By excluding the last hour in
+    # each year we also avoid linking subsequent years.
+    ramp_hours_in_year = range(num_hours_per_year - 1)
+
+    ramp_hours = []
+
+    for year in years:
+        offset = year * num_hours_per_year
+
+        for i in ramp_hours_in_year:
+            hour = offset + i
+            ramp_hours.append(hour)
+
+    return ramp_hours
+
+
+def is_year_fist_hour(h):
+    # Check if the given hour is the first hour of the year.
+    remainder = h % num_hours_per_year
+
+    return remainder == 0
+
+
+def is_year_last_hour(h):
+    # Check if the given hour is the last hour of the year.
+    remainder = (h + 1) % num_hours_per_year
+
+    return remainder == 0
 
 
 def concatenate_to_uncertain_variables_array(current_d, new_d):

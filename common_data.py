@@ -9,8 +9,8 @@ import numpy as np
 np.random.seed(13)
 
 # Indices and sets.
-num_years = 30
-num_hours_per_year = 24
+num_years = 10
+num_hours_per_year = 6
 num_hours = num_years*num_hours_per_year
 
 years = range(num_years)
@@ -35,9 +35,9 @@ num_lines = len(lines)
 
 # Generation costs.
 C_g = np.array([[1., 5., 5., 5.]])
-C_g = np.tile(C_g, (num_hours, 1))
+C_g = np.tile(C_g, (num_scenarios, num_hours, 1))
 
-# Generation and flow limit
+# Generation and flow limits.
 G_max = np.array([[10., 10., 10., 10.]])
 G_max = np.tile(G_max, (num_scenarios, num_hours, 1))
 G_max += np.random.uniform(-5.0, 5.0, (num_scenarios, num_hours, num_nodes))
@@ -47,6 +47,12 @@ F_max = np.tile(F_max, (num_scenarios, num_hours, 1))
 F_max += np.random.uniform(-3.0, 3.0, (num_scenarios, num_hours, num_lines))
 
 F_min = -F_max
+
+# Ramping limits from time step to another (both up- and down-ramp).
+G_ramp_max = np.array([[4., 4., 4., 4.]])
+G_ramp_max = np.tile(G_ramp_max, (num_scenarios, num_hours, 1))
+
+G_ramp_min = -G_ramp_max
 
 # lines x nodes indicence matrix connects the nodes through lines.
 incidence = np.array([[-1., 1., 0., 0.],

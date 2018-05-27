@@ -9,8 +9,8 @@ import numpy as np
 
 from common_data import years, hours, num_hours_per_year, scenarios, nodes, units, lines, \
  	existing_units, existing_lines, candidate_units, candidate_lines, G_max, F_max, F_min, \
- 	incidence, weights, C_g
-from helpers import to_year, unit_built, line_built
+ 	G_ramp_max, G_ramp_min, incidence, weights, C_g
+from helpers import to_year, unit_built, line_built, get_ramp_hours
 
 
 # Problem-specific data: generation and investment costs for each year.
@@ -70,7 +70,7 @@ def augment_master_problem(current_iteration, d):
 	g, f = add_primal_variables(v)
 
 	# Minimum value for the subproblem objective function.
-	m.addConstr(theta - sum(sum(sum(C_g[t, u]*g[o, t, u, v] for u in units) for t in hours) *
+	m.addConstr(theta - sum(sum(sum(C_g[o, t, u]*g[o, t, u, v] for u in units) for t in hours) *
 	 			weights[o] for o in scenarios) >= 0., name='minimum_subproblem_objective')
 
 	# Balance equation. Note that d[n, v] is input data from the subproblem.
@@ -88,6 +88,17 @@ def augment_master_problem(current_iteration, d):
 
 	m.addConstrs((F_min[o, t, l]*line_built(y, t, l) - f[o, t, l, v] <= 0.
 	 			  for o in scenarios for t in hours for l in lines), name='minimum_flow')
+
+	# Ramping constraints for generation units.
+	ramp_hours = get_ramp_hours() 	# Hours for which the ramp constraints are defined.
+
+	# Maximum ramp downwards.
+	m.addConstrs((G_ramp_min[o, t, u] - g[o, t + 1, u, v] + g[o, t, u, v] <= 0.
+				 for o in scenarios for t in ramp_hours for u in units), name='max_down_ramp')
+
+	# Maximum ramp upwards.
+	m.addConstrs((g[o, t + 1, u, v] - g[o, t, u, v] - G_ramp_max[o, t, u] <= 0.
+				 for o in scenarios for t in ramp_hours for u in units), name='max_up_ramp')
 
 
 def get_investment_and_availability_decisions():
