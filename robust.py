@@ -10,7 +10,7 @@ import numpy as np
 from common_data import hours, nodes, candidate_units, candidate_lines
 from helpers import concatenate_to_uncertain_variables_array, is_solution_unchanged, Timer
 from master_problem import master_problem, augment_master_problem, get_investment_cost, \
-	get_investment_decisions
+	get_investment_and_availability_decisions
 from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables
 
 
@@ -105,20 +105,20 @@ for iteration in range(MAX_ITERATIONS):
 	# Update lower bound to the master problem objective value.
 	LB = master_problem.objVal
 
-	# Obtain investment decisions from the master problem solution.
-	x, y = get_investment_decisions()
+	# Obtain investment and availability decisions from the master problem solution.
+	xhat, yhat, x, y = get_investment_and_availability_decisions()
 
 	# Sanity check for the initial master problem solution (no investment).
 	if iteration == 0:
-		no_generation_investment = all([np.isclose(v, 0.) for v in x.values()])
-		no_transmission_investment = all([np.isclose(v, 0.) for v in y.values()])
+		no_generation_investment = all([np.isclose(v, 0.) for v in xhat.values()])
+		no_transmission_investment = all([np.isclose(v, 0.) for v in yhat.values()])
 
 		assert no_generation_investment and no_transmission_investment, \
 			'Initial master problem solution suboptimal.'
-		prev_x = x
-		prev_y = y
+		prev_xhat = xhat
+		prev_yhat = yhat
 
-	# Update subproblem objective function with the newly updated investment decisions.
+	# Update subproblem objective function with the newly updated availability decisions.
 	set_subproblem_objective(x, y)
 
 	# Solve the subproblem.
@@ -128,7 +128,7 @@ for iteration in range(MAX_ITERATIONS):
 	print_solution_quality(subproblem, "Subproblem")
 
 	# Update the algorithm upper bound and compute new a gap.
-	UB = get_investment_cost(x, y) + subproblem.objVal
+	UB = get_investment_cost(xhat, yhat) + subproblem.objVal
 
 	GAP = compute_objective_gap(LB, UB)
 	gaps.append(GAP)
@@ -141,15 +141,15 @@ for iteration in range(MAX_ITERATIONS):
 
 	# Exit if the algorithm converged. Conditions are: 1) LB and UB needs to be close to each other,
 	# 2) solutions to master problem and subproblem must stay constant for one iteration.
-	prev_x = x
-	prev_y = y
-
-	unchanged_solution = is_solution_unchanged(prev_x, prev_y, x, y, d)
+	unchanged_solution = is_solution_unchanged(prev_xhat, prev_yhat, xhat, yhat, d)
 
 	if GAP < EPSILON and unchanged_solution:
 		converged = True
 		assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
 		break
+
+	prev_xhat = xhat
+	prev_yhat = yhat
 
 
 # Report solution.
@@ -189,7 +189,8 @@ else:
 
 print(separator)
 print('Objective value:', master_problem.objVal)
-print('Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal))
+print('Investment cost %s, operation cost %s ' % (get_investment_cost(xhat, yhat),
+ 												  subproblem.objVal))
 print(separator)
 
 # Report solution times.

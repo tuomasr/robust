@@ -38,9 +38,11 @@ Keywords here
 	$\Lambda^D$ 			& demand uncertainty budget \\
 	$\Lambda^{min/max}$		& minimum/maximum price \\
 	\multicolumn{2}{l}{\textbf{Binary variables}} \\
-	$x_{t, u}$ 							& equal 1 if investment is made into generation unit $u$ in period $t$ \\
-	$y_{t, \ell}$ 						& equal 1 if investment is made into transmission line $\ell$ in period $t$ \\
-	$w_n$ 								& equal 1 if demand is increased from the nominal level at node $n$ \\
+	$\hat{x}_{t, u}$ 	& equal 1 if investment is made into generation unit $u$ in period $t$ \\
+	$\hat{y}_{t, \ell}$ & equal 1 if investment is made into transmission line $\ell$ in period $t$ \\
+	$x_{t, u}$ 			& equal 1 if generation unit $u$ is operational in period $t$ \\
+	$y_{t, \ell}$ 		& equal 1 if transmission line $\ell$ is operational in period $t$ \\
+	$w_n$ 				& equal 1 if demand is increased from the nominal level at node $n$ \\
 	\multicolumn{2}{l}{\textbf{Continuous variables}} \\
 	$d_{\tau, n}$ 						& uncertain demand at node $n$ in period $\tau$ \\
 	$z_{o, \tau, n}$ 					& auxiliary variables for linearizing $\lambda_{o, \tau, n} d_{\tau, n}$ \\
@@ -62,8 +64,11 @@ Keywords here
 The stochastic robust optimization problem is
 
 \begin{align}
-&\label{saro_obj} \underset{\Phi^{L1}}{\text{min}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} x_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} y_{t, \ell} \right] +  \\
-&\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C^g_{\tau, u} g_{o, \tau, u},
+&\label{saro_obj} \underset{\Phi^{L1}}{\text{min}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] +  \\
+&\underset{\Phi^{L2} \in \Omega}{\text{max}} \quad \underset{\Phi^{L3} \in \Xi}{\text{min}} \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C^g_{\tau, u} g_{o, \tau, u} \\
+&\text{subject to} \nonumber \\
+&\label{master_constraint_first} x_{t, u} \leq \sum\limits_{t' = 1}^{t} \hat{x}_{t, u} 	\quad \forall t, u \in \Psi_n^{G+} \\
+&\label{master_constraint_last} y_{t, \ell} \leq \sum\limits_{t' = 1}^{t} \hat{y}_{t, \ell} 	\quad \forall t, \ell \in \Psi^{L+}
 \end{align}
 where $\Phi^{L1} = \{ x_{t, u} \, \forall t, u \in  \Psi^{G+}, y_{t, \ell} \, \forall t, \ell \in  \Psi^{L+} \}$, $\Phi^{L2} = \{ d_{\tau, n} \, \forall \tau, n \}$, and $\Phi^{L3} = \{ g_{o, \tau, u} \, \forall o, \tau, u, f_{o, \tau, \ell} \, \forall o, \tau, \ell \}$. The uncertainty set $\Omega$ is given by
 \begin{align}
@@ -86,8 +91,9 @@ where the notation $t(\tau)$ indicates to which master problem time step $t$ the
 At iteration $\nu$, we have $\Omega_{o, \tau, \nu}^{M} = \{ g_{o, \tau, u, \nu'} \, \forall o, \tau, u, \nu' \leq \nu, f_{o, \tau, \ell, \nu'} \, \forall o, \tau, \ell, \nu' \leq \nu \}$. Given $d_{\tau, n, \nu'}^*, \, \forall \tau, n, \nu' \leq \nu$ as input data obtained from all the previous solutions of the subproblem, the master problem at iteration $\nu$ is
 
 \begin{align}
-&\label{master_obj} \underset{\Phi^{L1}, \Omega_{o, \tau, \nu}^{M}, \theta}{\text{minimize}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} x_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} y_{t, \ell} \right] + \theta \\
+&\label{master_obj} \underset{\Phi^{L1}, \Omega_{o, \tau, \nu}^{M}, \theta}{\text{minimize}} \sum\limits_{t} \left[ \sum\limits_{u \in \Psi^{G+}} C^x_{t, u} \hat{x}_{t, u} + \sum\limits_{\ell \in \Psi^{L+}} C^y_{t, \ell} \hat{y}_{t, \ell} \right] + \theta \\
 &\text{subject to} \nonumber \\
+&\text{Eqs. } (\ref{master_constraint_first}) - (\ref{master_constraint_last}) \\
 &\theta \geq \sum\limits_o W_o \sum\limits_{\tau} \sum\limits_{u} C_{\tau, u}^g g_{o, \tau, u, \nu'} \quad \forall \nu' \leq \nu \\
 &\sum\limits_{u \in \Psi^G_{n}} g_{o, \tau, u, \nu'} + \sum\limits_{\ell} Y_{\ell, n} f_{o, \tau, \ell, \nu'} = d_{\tau, n, \nu'}^* \quad \forall o, \tau, n, \nu' \leq \nu \\
 &0 \leq g_{o, \tau, u, \nu'} \leq G_{o, \tau, u}^{max} \quad \forall o, \tau, u \in \Psi_n^G, \nu' \leq \nu \\

@@ -18,10 +18,10 @@ C_x = {(year, unit): 1. for year in years for unit in candidate_units}
 C_y = {(year, line): 1. for year in years for line in candidate_lines}
 
 
-def get_investment_cost(x, y):
+def get_investment_cost(xhat, yhat):
 	# Compute total investment cost for fixed generation and transmission investment decisions.
-	return sum(sum(C_x[t, u]*x[t, u] for u in candidate_units) +
-			   sum(C_y[t, l]*y[t, l] for l in candidate_lines) for t in years)
+	return sum(sum(C_x[t, u]*xhat[t, u] for u in candidate_units) +
+			   sum(C_y[t, l]*yhat[t, l] for l in candidate_lines) for t in years)
 
 
 def add_primal_variables(iteration):
@@ -41,14 +41,25 @@ m = Model("master_problem")
 g, f = add_primal_variables(0) 	# Primal variables for the initial model
 
 # Variables representing investment to generation units and transmission lines.
-x = m.addVars(years, candidate_units, vtype=GRB.BINARY, name='unit_investment')
-y = m.addVars(years, candidate_lines, vtype=GRB.BINARY, name='line_investment')
+xhat = m.addVars(years, candidate_units, vtype=GRB.BINARY, name='unit_investment')
+yhat = m.addVars(years, candidate_lines, vtype=GRB.BINARY, name='line_investment')
+
+# Variables indicating whether candidate generation units and transmission lines can be operated.
+x = m.addVars(years, candidate_units, vtype=GRB.BINARY, name='unit_available')
+y = m.addVars(years, candidate_lines, vtype=GRB.BINARY, name='line_available')
+
+# Constraints defining that candidate units and transmission lines can be operated if investment
+# has been made.
+m.addConstrs((x[t, u] - sum(xhat[tt, u] for tt in range(t + 1)) <= 0.
+ 			  for t in years for u in candidate_units), name='unit_operational')
+m.addConstrs((y[t, l] - sum(yhat[tt, l] for tt in range(t + 1)) <= 0.
+ 			  for t in years for l in candidate_lines), name='line_operational')
 
 # Variable representing the subproblem objective value.
 theta = m.addVar(name='theta', lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
 # Set master problem objective function. The optimal solution is no investment initially.
-m.setObjective(get_investment_cost(x, y) + theta, GRB.MINIMIZE)
+m.setObjective(get_investment_cost(xhat, yhat) + theta, GRB.MINIMIZE)
 
 
 def augment_master_problem(current_iteration, d):
@@ -79,12 +90,19 @@ def augment_master_problem(current_iteration, d):
 	 			  for o in scenarios for t in hours for l in lines), name='minimum_flow')
 
 
-def get_investment_decisions():
-	# Read current investments to generation and transmission. Round to avoid numerical issues.
-	current_x = {key: np.round(value.x) for key, value in x.items()}
-	current_y = {key: np.round(value.x) for key, value in y.items()}
+def get_investment_and_availability_decisions():
+	# Read current investments to generation and transmission and whether the units and lines are
+	# operational at some time point. Round to avoid numerical issues.
+	def var_to_dict(var):
+		return {key: np.round(value.x) for key, value in var.items()}
 
-	return current_x, current_y
+	current_xhat = var_to_dict(xhat)
+	current_yhat = var_to_dict(yhat)
+
+	current_x = var_to_dict(x)
+	current_y = var_to_dict(y)
+
+	return current_xhat, current_yhat, current_x, current_y
 
 
 # Assign the master problem to a variable that can be imported elsewhere.
