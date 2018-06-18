@@ -1,7 +1,6 @@
 import numpy as np
 
-from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables, \
-	get_rounded_subproblem_objective_value
+from subproblem import solve_subproblem, get_uncertain_variables
 from master_problem import master_problem, augment_master_problem, get_investment_cost
 from common_data import nodes, candidate_units, candidate_lines
 
@@ -91,14 +90,10 @@ for iteration in range(MAX_ITERATIONS):
 	y = {l: v for l, v in zip(candidate_lines, y)}
 
 	# update subproblem objective function with the investment decisions
-	set_subproblem_objective(x, y)
-
-	subproblem.optimize()
-
-	print_solution_quality(subproblem, "Subproblem")
+	solve_subproblem(x, y)
 
 	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + get_rounded_subproblem_objective_value(x, y)
+	UB = get_investment_cost(x, y) + subproblem.objVal
 
 	GAP = compute_objective_gap(LB, UB)
 

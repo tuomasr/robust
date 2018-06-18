@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(13)
 
 # indices and sets
-num_scenarios = 1000
+num_scenarios = 10
 scenarios = range(num_scenarios)
 
 num_nodes = 4
