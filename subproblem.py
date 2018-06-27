@@ -17,13 +17,11 @@ min_lambda_ = -K
 # Master problem definition
 mp = Model("subproblem_master")
 
-theta = mp.addVars(scenarios, name='theta', lb=-GRB.INFINITY, ub=GRB.INFINITY)
+delta = mp.addVar(name='theta', lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
-w = mp.addVars(units, name='demand_deviation', vtype=GRB.BINARY)
+w = mp.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
 
-obj = sum(theta[s] for s in scenarios)
-
-mp.setObjective(obj, GRB.MAXIMIZE)
+mp.setObjective(delta, GRB.MAXIMIZE)
 
 mp.addConstr(sum(w[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
 
@@ -31,14 +29,12 @@ def augment_master(sigma, rho_bar, rho_underline, omega_bar, omega_underline):
 	if sigma is None or rho_bar is None or rho_underline is None or omega_bar is None or omega_underline is None:
 		return
 
-	mp.addConstrs((theta[o] - max_lambda_*sum(rho_bar[u, o]*w[u] for u in units) +
-				  min_lambda_*sum(rho_underline[u, o]*w[u] for u in units) -
-				  max_lambda_*sum(omega_bar[u, o]*w[u] for u in units) +
-				  min_lambda_*sum(omega_underline[u, o]*w[u] for u in units) -
-				  sum(C_g[u]*weights[o]*sigma[u, o] for u in units) -
-				  max_lambda_*sum(omega_bar[u, o] for u in units) +
-				  min_lambda_*sum(omega_underline[u, o] for u in units) <= 0. for o in scenarios),
-				  name='theta_constraint')
+	mp.addConstr((delta - sum((max_lambda_*sum((rho_bar[n, o] - omega_bar[n, o])*w[n] for n in nodes) +
+				 min_lambda_*sum((rho_underline[n, o] - omega_underline[n, o])*w[n] for n in nodes) +
+				 sum(C_g[u]*weights[o]*sigma[u, o] for u in units) +
+				 max_lambda_*sum(omega_bar[n, o] for n in nodes) -
+				 min_lambda_*sum(omega_underline[n, o] for n in nodes)) for o in scenarios) <= 0.),
+				 name='theta_constraint')
 
 
 def get_uncertain_demand_decisions():
@@ -62,11 +58,8 @@ def create_slave(x, y, ww):
 	mu_bar = sp.addVars(lines, scenarios, name='dual_maximum_flow', lb=0., ub=K)
 	mu_underline = sp.addVars(lines, scenarios, name='dual_minimum_flow', lb=0., ub=K)
 
-	# balance equation dual (i.e. price)
-	lambda_ = sp.addVars(nodes, scenarios, name='dual_balance', lb=min_lambda_, ub=max_lambda_)
-
 	obj = \
-		sum(sum(z[n, o]*demand_increase[n] + lambda_[n, o]*nominal_demand[n] for n in nodes) -
+		sum(sum(z[n, o]*demand_increase[n] + (z[n, o] + lambda_tilde[n, o])*nominal_demand[n] for n in nodes) -
 			sum(beta_bar[u, o]*G_max[u, o] for u in existing_units) -
 			sum(mu_bar[l, o]*F_max[l, o] - mu_underline[l, o]*F_min[l, o] for l in existing_lines) -
 			sum(beta_bar[u, o]*G_max[u, o]*x[u] for u in candidate_units) -
@@ -77,16 +70,12 @@ def create_slave(x, y, ww):
 
 	# dual constraints
 	sigma_constrs = \
-		sp.addConstrs((lambda_[n, o] - beta_bar[n, o] + beta_underline[n, o] - C_g[n]*weights[o] == 0.
+		sp.addConstrs((z[n, o] + lambda_tilde[n, o] - beta_bar[n, o] + beta_underline[n, o] - C_g[n]*weights[o] == 0.
 				  	  for n in nodes for o in scenarios), name="generation_dual_constraint")
 
-	sp.addConstrs((sum(incidence[l, n]*lambda_[n, o] for n in nodes) - mu_bar[l, o] +
+	sp.addConstrs((sum(incidence[l, n]*(z[n, o] + lambda_tilde[n,o]) for n in nodes) - mu_bar[l, o] +
 	 			  mu_underline[l, o] == 0. for l in lines for o in scenarios),
 	 			  name='flow_dual_constraint')
-
-	# constraints for linearizing lambda_[n, o] * d[n]
-	sp.addConstrs((z[n, o] - lambda_[n, o] + lambda_tilde[n, o] == 0. for n in nodes for o in scenarios),
-				  name='linearization_z_definition')
 
 	rho_underline_constrs = \
 		sp.addConstrs((ww[n]*min_lambda_ - z[n, o] <= 0. for n in nodes for o in scenarios),
@@ -113,7 +102,7 @@ def get_dual_variables(constrs):
 
 	for u in units:
 		for o in scenarios:
-			dual_values[u, o] = constrs[u, o].getAttr('Pi')
+			dual_values[u, o] = max(0., constrs[u, o].getAttr('Pi'))
 
 	return dual_values
 
@@ -145,8 +134,6 @@ def solve_subproblem(x, y):
 
 		ww = get_uncertain_demand_decisions()
 
-		#import pdb; pdb.set_trace()
-
 		sp, sigma_constrs, rho_bar_constrs, rho_underline_constrs, omega_bar_constrs, \
 			omega_underline_constrs = create_slave(x, y, ww)
 		sp.optimize()
@@ -154,8 +141,6 @@ def solve_subproblem(x, y):
 
 		if sp.Status != GRB.OPTIMAL:
 			raise RuntimeError("Subproblem not optimal.")
-
-		#import pdb; pdb.set_trace()
 
 		if i > 0: 
 			if abs(ub - lb) / ub < threshold:
