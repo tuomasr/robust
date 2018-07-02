@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(13)
 
 # indices and sets
-num_scenarios = 10
+num_scenarios = 1000
 scenarios = range(num_scenarios)
 
 num_nodes = 4
@@ -15,8 +15,8 @@ existing_lines = [0, 2]
 candidate_units = [0, 2]
 candidate_lines = [1, 3]
 
-units = candidate_units + existing_units
-lines = candidate_lines + existing_lines
+units = range(len(candidate_units) + len(existing_units))
+lines = range(len(candidate_lines) + len(existing_lines))
 
 num_lines = len(lines)
 

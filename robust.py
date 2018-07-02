@@ -90,10 +90,10 @@ for iteration in range(MAX_ITERATIONS):
 	y = {l: v for l, v in zip(candidate_lines, y)}
 
 	# update subproblem objective function with the investment decisions
-	solve_subproblem(x, y)
+	subproblem_objval = solve_subproblem(x, y)
 
 	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + subproblem.objVal
+	UB = get_investment_cost(x, y) + subproblem_objval
 
 	GAP = compute_objective_gap(LB, UB)
 
@@ -114,7 +114,7 @@ for iteration in range(MAX_ITERATIONS):
 
 	unchanged_decisions = (prev_x == x) and (prev_y == y) and all(d[:, -1] == d[:, -2])
 
-	if GAP < EPSILON and unchanged_decisions:
+	if GAP < EPSILON:
 		converged = True
 		assert GAP >= BAD_GAP_THRESHOLD, 'Upper bound %f, lower bound %f.' % (UB, LB)
 		break
@@ -133,6 +133,7 @@ if print_primal_variables:
 	print 'Uncertain variables:'
 	print separator
 	names, values = get_uncertain_variables()
+	print d
 	for name, value in zip(names, values):
 		print name, value
 
@@ -154,7 +155,7 @@ else:
 
 print separator
 print 'Objective value:', master_problem.objVal
-print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem.objVal)
+print 'Investment cost %s, operation cost %s ' % (get_investment_cost(x, y), subproblem_objval)
 print separator
 
 plot_gap = False
