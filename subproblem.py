@@ -26,8 +26,11 @@ mp.setObjective(delta, GRB.MAXIMIZE)
 mp.addConstr(sum(w[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
 
 
-def augment_master(sigma, rho_bar, rho_underline, omega_bar, omega_underline, beta_bar,
-				   beta_underline, mu_bar, mu_underline):
+def augment_master(dual_values):
+	# Unpack the dual values. Be careful with the order.
+	sigma, rho_underline, rho_bar, omega_underline, omega_bar, beta_underline, beta_bar, \
+		mu_underline, mu_bar = dual_values
+
 	mp.addConstr((delta -
 				 sum((max_lambda_*sum((rho_bar[n, o] - omega_bar[n, o])*w[n] for n in nodes) +
 				 min_lambda_*sum((rho_underline[n, o] - omega_underline[n, o])*w[n] for n in nodes) +
@@ -42,8 +45,18 @@ def augment_master(sigma, rho_bar, rho_underline, omega_bar, omega_underline, be
 
 
 def get_uncertain_demand_decisions(initial):
+	# Construct an initial solution for the first iteration, otherwise read the optimal solution.
 	if initial:
-		uncertain = {u: 0. for u in w.keys()}
+		# The initial solution just assigns '1' in order until the uncertainty budget is met.
+		uncertain = dict()
+		total = 0
+
+		for u in units:
+			if total < uncertainty_budget:
+				uncertain[u] = 1.
+				total += 1
+			else:
+				uncertain[u] = 0.
 	else:
 		uncertain = {u: np.round(w[u].x, 3) for u in w.keys()}
 
@@ -53,18 +66,19 @@ def get_uncertain_demand_decisions(initial):
 # Slave problem definition
 def create_slave(x, y, ww):
 	sp = Model("subproblem_slave")
+	sp.Params.Method = 1 	# Dual simplex.
 
 	# variables for linearizing bilinear terms lambda_[n, o] * u[n]
 	z = sp.addVars(nodes, scenarios, name='linearization_lambda_d')
 	lambda_tilde = sp.addVars(nodes, scenarios, name='linearization_auxiliary')
 
-	# maximum and minimum generation dual variables
-	beta_bar = sp.addVars(units, scenarios, name='dual_maximum_generation')
+	# minimum and maximum generation dual variables
 	beta_underline = sp.addVars(units, scenarios, name='dual_minimum_generation')
-
-	# maximum and minimum transmission flow dual variables
-	mu_bar = sp.addVars(lines, scenarios, name='dual_maximum_flow')
+	beta_bar = sp.addVars(units, scenarios, name='dual_maximum_generation')
+	
+	# minimum and maximum transmission flow dual variables
 	mu_underline = sp.addVars(lines, scenarios, name='dual_minimum_flow')
+	mu_bar = sp.addVars(lines, scenarios, name='dual_maximum_flow')
 
 	obj = \
 		sum(sum(z[n, o]*demand_increase[n] + (z[n, o] + lambda_tilde[n, o])*nominal_demand[n] for n in nodes) -
@@ -76,15 +90,17 @@ def create_slave(x, y, ww):
 
 	sp.setObjective(obj, GRB.MAXIMIZE)
 
-	sp.addConstrs((0. <= beta_bar[u, o] for u in units for o in scenarios))
 	sp.addConstrs((0. <= beta_underline[u, o] for u in units for o in scenarios))
-	sp.addConstrs((0. <= mu_bar[u, o] for u in units for o in scenarios))
+	sp.addConstrs((0. <= beta_bar[u, o] for u in units for o in scenarios))
+	
 	sp.addConstrs((0. <= mu_underline[u, o] for u in units for o in scenarios))
+	sp.addConstrs((0. <= mu_bar[u, o] for u in units for o in scenarios))
 
-	beta_bar_constrs = sp.addConstrs((beta_bar[u, o] <= K for u in units for o in scenarios))
 	beta_underline_constrs = sp.addConstrs((beta_underline[u, o] <= K for u in units for o in scenarios))
-	mu_bar_constrs = sp.addConstrs((mu_bar[u, o] <= K for u in units for o in scenarios))
+	beta_bar_constrs = sp.addConstrs((beta_bar[u, o] <= K for u in units for o in scenarios))
+	
 	mu_underline_constrs = sp.addConstrs((mu_underline[u, o] <= K for u in units for o in scenarios))
+	mu_bar_constrs = sp.addConstrs((mu_bar[u, o] <= K for u in units for o in scenarios))
 
 	# dual constraints
 	sigma_constrs = \
@@ -96,7 +112,7 @@ def create_slave(x, y, ww):
 	 			  name='flow_dual_constraint')
 
 	rho_underline_constrs = \
-		sp.addConstrs((ww[n]*min_lambda_ - z[n, o] <= 0. for n in nodes for o in scenarios),
+		sp.addConstrs((ww[n]*min_lambda_ - z[n, o] <= 0.  for n in nodes for o in scenarios),
 				      name='linearization_z_bounds1')
 
 	rho_bar_constrs = \
@@ -111,23 +127,48 @@ def create_slave(x, y, ww):
 		sp.addConstrs((lambda_tilde[n, o] - (1. - ww[n])*max_lambda_ <= 0. for n in nodes
 				  	  for o in scenarios), name='lambda_tilde_bounds2')
 
-	return sp, sigma_constrs, rho_bar_constrs, rho_underline_constrs, omega_bar_constrs, \
-		omega_underline_constrs, beta_bar_constrs, beta_underline_constrs, mu_bar_constrs, \
-		mu_underline_constrs
+	all_constrs = (sigma_constrs,
+	 		       rho_underline_constrs, rho_bar_constrs,
+	 		       omega_underline_constrs, omega_bar_constrs,
+	 		       beta_underline_constrs, beta_bar_constrs,
+	 		       mu_underline_constrs, mu_bar_constrs)
+
+	updatable_constrs = (rho_underline_constrs, rho_bar_constrs,
+						 omega_underline_constrs, omega_bar_constrs)
+
+	return sp, all_constrs, updatable_constrs
 
 
-def get_dual_variables(constrs):
-	dual_values = dict()
+def update_slave(updatable_constrs, ww):
+	# Update constraints involving the value of w. Be careful with the order when unpacking.
+	rho_underline_constrs, rho_bar_constrs, omega_underline_constrs, omega_bar_constrs = \
+		updatable_constrs
 
-	for u in units:
+	for n in nodes:
 		for o in scenarios:
-			dual_values[u, o] = constrs[u, o].getAttr('Pi')
+			rho_underline_constrs[n, o].RHS = -ww[n]*min_lambda_
+			rho_bar_constrs[n, o].RHS = ww[n]*max_lambda_
 
-	return dual_values
+			omega_underline_constrs[n, o].RHS = -(1. - ww[n])*min_lambda_
+			omega_bar_constrs[n, o].RHS = (1. - ww[n])*max_lambda_
+
+
+def get_dual_variables(all_constrs):
+	# Get dual variable values of all (relevant) constraints of the slave problem.
+	def _get_dual_values(constrs):
+		dual_values = dict()
+
+		for u in units:
+			for o in scenarios:
+				dual_values[u, o] = constrs[u, o].getAttr('Pi')
+
+		return dual_values
+
+	return [_get_dual_values(constrs) for constrs in all_constrs]
 
 
 def get_uncertain_variables():
-	# get the names and values of uncertain variables of the subproblem
+	# Get the names and values of uncertain variables of the subproblem.
 	names = np.array([w[u].varName for u in units])
 	values = np.array([np.round(w[u].x*demand_increase[u] + nominal_demand[u], 3) for u in units])
 
@@ -137,28 +178,41 @@ def get_uncertain_variables():
 def solve_subproblem(x, y):
 	max_iterations = 10
 	threshold = 1e-6
+	separator = '-' * 50
 
 	lb = -np.inf
 	ub = np.inf
 
 	for iteration in range(max_iterations):
-		if iteration > 0:
-			augment_master(sigma, rho_bar, rho_underline, omega_bar, omega_underline, beta_bar,
-						   beta_underline, mu_bar, mu_underline)
+		initial = iteration == 0
+
+		if not initial:
+			augment_master(dual_values)
+
+			print(separator)
+			print('Solving Benders master problem.')
 			mp.optimize()
+			print(separator)
 
 			if mp.Status != GRB.OPTIMAL:
 				raise RuntimeError("Benders master problem not optimal.")
 
 			ub = mp.objVal
-
-		initial = iteration == 0
+		
 		ww = get_uncertain_demand_decisions(initial)
 
-		sp, sigma_constrs, rho_bar_constrs, rho_underline_constrs, omega_bar_constrs, \
-			omega_underline_constrs, beta_bar_constrs, beta_underline_constrs, mu_bar_constrs, \
-			mu_underline_constrs = create_slave(x, y, ww)
+		# Create a slave problem during the first iteration. Otherwise, only update the values of w.
+		if initial:
+			sp, all_constrs, updatable_constrs = create_slave(x, y, ww)
+		else:
+			update_slave(updatable_constrs, ww)
+			sp.Params.Method = 1 	# Dual simplex.
+
+		print(separator)
+		print('Solving Benders slave problem.')
 		sp.optimize()
+		print(separator)
+		
 		lb = sp.objVal
 
 		if sp.Status != GRB.OPTIMAL:
@@ -170,15 +224,6 @@ def solve_subproblem(x, y):
 		if abs(ub - lb) / ub < threshold:
 			return (lb + ub)/2
 
-		sigma = get_dual_variables(sigma_constrs)
-		rho_bar = get_dual_variables(rho_bar_constrs)
-		rho_underline = get_dual_variables(rho_underline_constrs)
-		omega_bar = get_dual_variables(omega_bar_constrs)
-		omega_underline = get_dual_variables(omega_underline_constrs)
-
-		beta_bar = get_dual_variables(beta_bar_constrs)
-		beta_underline = get_dual_variables(beta_underline_constrs)
-		mu_bar = get_dual_variables(mu_bar_constrs)
-		mu_underline = get_dual_variables(mu_underline_constrs)
+		dual_values = get_dual_variables(all_constrs)
 
 	raise RuntimeError("Max iterations hit in Benders.")
