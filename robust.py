@@ -23,6 +23,7 @@ if enable_custom_configuration:
 		master_problem.setParam(parameter, value)
 		subproblem.setParam(parameter, value)
 
+
 MAX_ITERATIONS = 10
 EPSILON = 1e-6 	# From Minguez (2016)
 # A bug or numerical issues cause LB to become higher than UB in some cases.
@@ -120,7 +121,9 @@ for iteration in range(MAX_ITERATIONS):
 		break
 
 
-print_primal_variables = True
+print_primal_variables = False
+
+print d
 
 if print_primal_variables:
 	print separator

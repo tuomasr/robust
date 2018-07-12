@@ -14,34 +14,41 @@ K = 100. 	# bad values (e.g. 10k) will lead to numerical issues
 max_lambda_ = K 	
 min_lambda_ = 0.
 
-# Master problem definition
+# Master problem definition.
 mp = Model("subproblem_master")
 
-delta = mp.addVar(name='delta')
+delta = mp.addVars(scenarios, name='delta', lb=-GRB.INFINITY)
 
 w = mp.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
 
-mp.setObjective(delta, GRB.MAXIMIZE)
+mp.setObjective(sum(delta[o] for o in scenarios), GRB.MAXIMIZE)
 
 mp.addConstr(sum(w[n] for n in nodes) - uncertainty_budget <= 0., name="uncertainty_set_budget")
 
 
 def augment_master(dual_values):
 	# Unpack the dual values. Be careful with the order.
-	sigma, rho_underline, rho_bar, omega_underline, omega_bar, beta_underline, beta_bar, \
-		mu_underline, mu_bar = dual_values
+	sigma, rho_underline, rho_bar, omega_underline, omega_bar = dual_values
 
-	mp.addConstr((delta -
-				 sum((max_lambda_*sum((rho_bar[n, o] - omega_bar[n, o])*w[n] for n in nodes) +
-				 min_lambda_*sum((rho_underline[n, o] - omega_underline[n, o])*w[n] for n in nodes) +
-				 sum(C_g[u]*weights[o]*sigma[u, o] for u in units) +
-				 sum(beta_bar[u, o] for u in units) +
-				 sum(beta_underline[u, o] for u in units) +
-				 sum(mu_bar[l, o] for l in lines) +
-				 sum(mu_underline[l, o] for l in lines) +
-				 max_lambda_*sum(omega_bar[n, o] for n in nodes) -
-				 min_lambda_*sum(omega_underline[n, o] for n in nodes)) for o in scenarios) <= 0.),
-				 name='delta_constraint')
+	# Enable/disable multicut version of Benders. Single cut seems to be faster.
+	multicut = False
+
+	if not multicut:
+		mp.addConstr((sum(delta[o] for o in scenarios) -
+					 sum((max_lambda_*sum((rho_bar[n, o] - omega_bar[n, o])*w[n] for n in nodes) +
+					 min_lambda_*sum((rho_underline[n, o] - omega_underline[n, o])*w[n] for n in nodes) +
+					 sum(C_g[u]*weights[o]*sigma[u, o] for u in units) +
+					 max_lambda_*sum(omega_bar[n, o] for n in nodes) -
+					 min_lambda_*sum(omega_underline[n, o] for n in nodes)) for o in scenarios) <= 0.),
+					 name='delta_constraint_single_cut')
+	else:
+		mp.addConstrs((delta[o] -
+					  (max_lambda_*sum((rho_bar[n, o] - omega_bar[n, o])*w[n] for n in nodes) + 
+					  min_lambda_*sum((rho_underline[n, o] - omega_underline[n, o])*w[n] for n in nodes) +
+					  sum(C_g[u]*weights[o]*sigma[u, o] for u in units) +
+					  max_lambda_*sum(omega_bar[n, o] for n in nodes) -
+					  min_lambda_*sum(omega_underline[n, o] for n in nodes)) <= 0. for o in scenarios),
+					  name='delta_constraint_multi_cut')
 
 
 def get_uncertain_demand_decisions(initial):
@@ -69,16 +76,16 @@ def create_slave(x, y, ww):
 	sp.Params.Method = 1 	# Dual simplex.
 
 	# variables for linearizing bilinear terms lambda_[n, o] * u[n]
-	z = sp.addVars(nodes, scenarios, name='linearization_lambda_d')
-	lambda_tilde = sp.addVars(nodes, scenarios, name='linearization_auxiliary')
+	z = sp.addVars(nodes, scenarios, name='linearization_lambda_d', lb=min_lambda_)
+	lambda_tilde = sp.addVars(nodes, scenarios, name='linearization_auxiliary', lb=min_lambda_)
 
 	# minimum and maximum generation dual variables
-	beta_underline = sp.addVars(units, scenarios, name='dual_minimum_generation')
-	beta_bar = sp.addVars(units, scenarios, name='dual_maximum_generation')
+	beta_underline = sp.addVars(units, scenarios, name='dual_minimum_generation', lb=0., ub=max_lambda_)
+	beta_bar = sp.addVars(units, scenarios, name='dual_maximum_generation', lb=0., ub=max_lambda_)
 	
 	# minimum and maximum transmission flow dual variables
-	mu_underline = sp.addVars(lines, scenarios, name='dual_minimum_flow')
-	mu_bar = sp.addVars(lines, scenarios, name='dual_maximum_flow')
+	mu_underline = sp.addVars(lines, scenarios, name='dual_minimum_flow', lb=0., ub=max_lambda_)
+	mu_bar = sp.addVars(lines, scenarios, name='dual_maximum_flow', lb=0., ub=max_lambda_)
 
 	obj = \
 		sum(sum(z[n, o]*demand_increase[n] + (z[n, o] + lambda_tilde[n, o])*nominal_demand[n] for n in nodes) -
@@ -89,18 +96,6 @@ def create_slave(x, y, ww):
 			for o in scenarios)
 
 	sp.setObjective(obj, GRB.MAXIMIZE)
-
-	sp.addConstrs((0. <= beta_underline[u, o] for u in units for o in scenarios))
-	sp.addConstrs((0. <= beta_bar[u, o] for u in units for o in scenarios))
-	
-	sp.addConstrs((0. <= mu_underline[u, o] for u in units for o in scenarios))
-	sp.addConstrs((0. <= mu_bar[u, o] for u in units for o in scenarios))
-
-	beta_underline_constrs = sp.addConstrs((beta_underline[u, o] <= K for u in units for o in scenarios))
-	beta_bar_constrs = sp.addConstrs((beta_bar[u, o] <= K for u in units for o in scenarios))
-	
-	mu_underline_constrs = sp.addConstrs((mu_underline[u, o] <= K for u in units for o in scenarios))
-	mu_bar_constrs = sp.addConstrs((mu_bar[u, o] <= K for u in units for o in scenarios))
 
 	# dual constraints
 	sigma_constrs = \
@@ -129,9 +124,7 @@ def create_slave(x, y, ww):
 
 	all_constrs = (sigma_constrs,
 	 		       rho_underline_constrs, rho_bar_constrs,
-	 		       omega_underline_constrs, omega_bar_constrs,
-	 		       beta_underline_constrs, beta_bar_constrs,
-	 		       mu_underline_constrs, mu_bar_constrs)
+	 		       omega_underline_constrs, omega_bar_constrs)
 
 	updatable_constrs = (rho_underline_constrs, rho_bar_constrs,
 						 omega_underline_constrs, omega_bar_constrs)
@@ -219,9 +212,10 @@ def solve_subproblem(x, y):
 			raise RuntimeError("Benders slave problem not optimal.")
 
 		if lb > ub + threshold:
-			raise RuntimeError("lb > ub in Benders")
+			raise RuntimeError("lb > ub in Benders.")
 
-		if abs(ub - lb) / ub < threshold:
+		if abs(ub - lb) / abs(ub) < threshold:
+			print('Took %d Benders iterations.' % (iteration + 1))
 			return (lb + ub)/2
 
 		dual_values = get_dual_variables(all_constrs)
