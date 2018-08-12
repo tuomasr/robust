@@ -1,7 +1,6 @@
 import numpy as np
 
-from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables, \
-	get_rounded_subproblem_objective_value
+from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables
 from master_problem import master_problem, augment_master_problem, get_investment_cost
 from common_data import nodes, candidate_units, candidate_lines
 
@@ -79,7 +78,7 @@ for iteration in range(MAX_ITERATIONS):
 	master_problem_y = [v for v in master_problem.getVars() if 'line_investment' in v.varName]
 
 	# round and convert to integer as there may be floating point errors
-	x = [np.round(v.x) for v in master_problem_x]
+	x = [v.x for v in master_problem_x]
 	y = [np.round(v.x) for v in master_problem_y]
 
 	if iteration == 0:
@@ -98,7 +97,7 @@ for iteration in range(MAX_ITERATIONS):
 	print_solution_quality(subproblem, "Subproblem")
 
 	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + get_rounded_subproblem_objective_value(x, y)
+	UB = get_investment_cost(x, y) + subproblem.objVal
 
 	GAP = compute_objective_gap(LB, UB)
 

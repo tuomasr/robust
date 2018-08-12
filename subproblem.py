@@ -1,24 +1,24 @@
 from gurobipy import *
 import numpy as np
 
-from common_data import scenarios, nodes, units, lines, existing_units, existing_lines, \
-	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g
+from common_data import scenarios, nodes, load, units, lines, existing_units, existing_lines, \
+	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g, unit_to_node
 
 
 # problem-specific data
-nominal_demand = np.array([3., 3., 3., 3.])
-demand_increase = np.array([1., 1., 1., 1.])
-uncertainty_budget = 2.
+nominal_demand = load
+demand_increase = 200. * np.ones(len(nominal_demand))
+uncertainty_budget = 2000.
 
 # create a model
 m = Model("subproblem")
 
-K = 100. 	# bad values (e.g. 10k) will lead to numerical issues
+K = 10000.
 
 # add nodewise uncertain demand variables and binary variables for deviating from the
 # nominal demand value
 d = m.addVars(nodes, name='uncertain_demand', lb=0., ub=GRB.INFINITY)
-u = m.addVars(units, name='demand_deviation', vtype=GRB.BINARY)
+u = m.addVars(nodes, name='demand_deviation', vtype=GRB.BINARY)
 
 # variables for linearizing bilinear terms lambda_[n, o] * u[n]
 z = m.addVars(nodes, scenarios, name='linearization_lambda_d', lb=-K, ub=K)
@@ -45,30 +45,15 @@ def get_objective(x, y):
 		sum(sum(z[n, o]*demand_increase[n] + lambda_[n, o]*nominal_demand[n] for n in nodes) -
 			sum(beta_bar[u, o]*G_max[u, o] for u in existing_units) -
 			sum(mu_bar[l, o]*F_max[l, o] - mu_underline[l, o]*F_min[l, o] for l in existing_lines) -
-			sum(beta_bar[u, o]*G_max[u, o]*x[u] for u in candidate_units) -
+			sum(beta_bar[u, o]*x[u] for u in candidate_units) -
 			sum(mu_bar[l, o]*F_max[l, o]*y[l] - mu_underline[l, o]*F_min[l, o]*y[l] for l in candidate_lines)
 			for o in scenarios)
 
 	return obj
 
 
-def get_rounded_subproblem_objective_value(x, y):
-	r = lambda z: np.round(z, 3)
-
-	obj = \
-		sum(sum(r(z[n, o].x)*demand_increase[n] + r(lambda_[n, o].x)*nominal_demand[n] for n in nodes) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o] for u in existing_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o] - r(mu_underline[l, o].x)*F_min[l, o] for l in existing_lines) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o]*x[u] for u in candidate_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o]*y[l] - r(mu_underline[l, o].x)*F_min[l, o]*y[l] for l in candidate_lines)
-			for o in scenarios)
-
-	obj = r(obj)
-
-	return obj
-
-
-def set_subproblem_objective(x=np.zeros(100, dtype=np.float32), y=np.zeros(100, dtype=np.float32)):
+def set_subproblem_objective(x=np.zeros(10000, dtype=np.float32),
+ 							 y=np.zeros(10000, dtype=np.float32)):
 	# set objective function for the subproblem
 	obj = get_objective(x, y)
 
@@ -79,8 +64,8 @@ set_subproblem_objective()
 
 
 # dual constraints
-m.addConstrs((lambda_[n, o] - beta_bar[n, o] + beta_underline[n, o] - C_g[n]*weights[o] == 0.
- 			 for n in nodes for o in scenarios), name="generation_dual_constraint")
+m.addConstrs((lambda_[unit_to_node[u], o] - beta_bar[u, o] + beta_underline[u, o] - C_g[u]*weights[o] == 0.
+ 			 for u in units for o in scenarios), name="generation_dual_constraint")
 
 m.addConstrs((sum(incidence[l, n]*lambda_[n, o] for n in nodes) - mu_bar[l, o] +
  			  mu_underline[l, o] == 0. for l in lines for o in scenarios),

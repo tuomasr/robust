@@ -2,7 +2,7 @@ from gurobipy import *
 import numpy as np
 
 from common_data import scenarios, nodes, units, lines, existing_units, existing_lines, \
-	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g
+	candidate_units, candidate_lines, G_max, F_max, F_min, incidence, weights, C_g, node_to_unit
 
 
 # problem-specific data: generation and investment costs
@@ -30,8 +30,8 @@ m = Model("master_problem")
 
 g, f = add_primal_variables(0) 	# primal variables for the initial model
 
-# investment to a generation unit and transmission line
-x = m.addVars(candidate_units, vtype=GRB.BINARY, name='unit_investment')
+# investment to a generation unit and transmission lines
+x = m.addVars(candidate_units, name='unit_investment', lb=0., ub=GRB.INFINITY)
 y = m.addVars(candidate_lines, vtype=GRB.BINARY, name='line_investment')
 
 # subproblem objective value
@@ -53,12 +53,18 @@ def augment_master_problem(current_iteration, d):
 	 			for o in scenarios) >= 0., name='minimum_subproblem_objective')
 
 	# balance equation. Note that d[n, v] is input data from the subproblem
-	m.addConstrs((g[n, o, v] + sum(incidence[l, n]*f[l, o, v] for l in lines) - d[n, v] == 0.
+	m.addConstrs((sum(g[u, o, v] for u in node_to_unit[n]) + sum(incidence[l, n]*f[l, o, v] for l in lines) - d[n, v] == 0.
 				 for n in nodes for o in scenarios), name='balance')
 
-	# generation constraint for the units.
-	m.addConstrs((g[u, o, v] - G_max[u, o]*(x[u] if u in candidate_units else 1) <= 0.
-	 			  for u in units for o in scenarios), name='maximum_generation')
+	# generation constraint for the existing and candidate units.
+	m.addConstrs((g[u, o, v] - G_max[u, o] <= 0. for u in existing_units for o in scenarios),
+	 			 name='maximum_generation_existing_units')
+
+	m.addConstrs((x[u] - G_max[u, o] <= 0. for u in candidate_units for o in scenarios),
+	 			 name='maximum_candidate_unit_capacity')
+
+	m.addConstrs((g[u, o, v] - x[u] <= 0. for u in candidate_units for o in scenarios),
+	 			 name='maximum_generation_candidate_units')
 
 	# flow constraint for the lines.
 	m.addConstrs((f[l, o, v] - F_max[l, o]*(y[l] if l in candidate_lines else 1) <= 0.
@@ -66,6 +72,8 @@ def augment_master_problem(current_iteration, d):
 
 	m.addConstrs((F_min[l, o]*(y[l] if l in candidate_lines else 1) - f[l, o, v] <= 0.
 	 			  for l in lines for o in scenarios), name='minimum_flow')
+
+	m.write('lol.lp')
 
 
 master_problem = m
