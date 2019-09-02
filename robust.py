@@ -1,7 +1,7 @@
 import numpy as np
 
 from subproblem import subproblem, set_subproblem_objective, get_uncertain_variables, \
-	get_rounded_subproblem_objective_value
+	get_subproblem_objective_value
 from master_problem import master_problem, augment_master_problem, get_investment_cost
 from common_data import nodes, candidate_units, candidate_lines
 
@@ -79,8 +79,8 @@ for iteration in range(MAX_ITERATIONS):
 	master_problem_y = [v for v in master_problem.getVars() if 'line_investment' in v.varName]
 
 	# round and convert to integer as there may be floating point errors
-	x = [np.round(v.x) for v in master_problem_x]
-	y = [np.round(v.x) for v in master_problem_y]
+	x = [int(v.x) for v in master_problem_x]
+	y = [int(v.x) for v in master_problem_y]
 
 	if iteration == 0:
 		assert np.allclose(x, 0) and np.allclose(y, 0), 'Initial master problem solution suboptimal.'
@@ -98,7 +98,7 @@ for iteration in range(MAX_ITERATIONS):
 	print_solution_quality(subproblem, "Subproblem")
 
 	# update upper bound and compute new gap
-	UB = get_investment_cost(x, y) + get_rounded_subproblem_objective_value(x, y)
+	UB = get_investment_cost(x, y) + get_subproblem_objective_value(x, y)
 
 	GAP = compute_objective_gap(LB, UB)
 
@@ -110,7 +110,6 @@ for iteration in range(MAX_ITERATIONS):
 	# add new column to d
 	uncertain_variable_vals = uncertain_variable_vals[:, np.newaxis]
 	d = np.concatenate((d, uncertain_variable_vals), axis=1)
-	d = np.round(d, 3)
 
 	# exit if the algorithm converged. 1) LB and UB needs to be close to each other
 	# 2) solutions to master problem and subproblem must stay constant.

@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(13)
 
 # indices and sets
-num_scenarios = 1000
+num_scenarios = 3
 scenarios = range(num_scenarios)
 
 num_nodes = 4
@@ -40,10 +40,6 @@ incidence = np.array([[-1., 1., 0., 0.],
 					  [0., -1., 1., 0.],
 					  [0., 0., -1., 1.],
 					  [1., 0., 0., -1.]])
-
-F_max = np.round(F_max, 3)
-F_min = np.round(F_min, 3)
-G_max = np.round(G_max, 3)
 
 # equal scenario weights
 weights = np.ones(num_scenarios)

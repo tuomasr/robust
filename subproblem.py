@@ -33,7 +33,7 @@ mu_bar = m.addVars(lines, scenarios, name='dual_maximum_flow', lb=0., ub=K)
 mu_underline = m.addVars(lines, scenarios, name='dual_minimum_flow', lb=0., ub=K)
 
 # balance equation dual (i.e. price)
-max_lambda_ = K 	
+max_lambda_ = K
 min_lambda_ = -K
 lambda_ = m.addVars(nodes, scenarios, name='dual_balance', lb=min_lambda_, ub=max_lambda_)
 
@@ -52,18 +52,14 @@ def get_objective(x, y):
 	return obj
 
 
-def get_rounded_subproblem_objective_value(x, y):
-	r = lambda z: np.round(z, 3)
-
+def get_subproblem_objective_value(x, y):
 	obj = \
-		sum(sum(r(z[n, o].x)*demand_increase[n] + r(lambda_[n, o].x)*nominal_demand[n] for n in nodes) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o] for u in existing_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o] - r(mu_underline[l, o].x)*F_min[l, o] for l in existing_lines) -
-			sum(r(beta_bar[u, o].x)*G_max[u, o]*x[u] for u in candidate_units) -
-			sum(r(mu_bar[l, o].x)*F_max[l, o]*y[l] - r(mu_underline[l, o].x)*F_min[l, o]*y[l] for l in candidate_lines)
+		sum(sum(z[n, o].x*demand_increase[n] + lambda_[n, o].x*nominal_demand[n] for n in nodes) -
+			sum(beta_bar[u, o].x*G_max[u, o] for u in existing_units) -
+			sum(mu_bar[l, o].x*F_max[l, o] - mu_underline[l, o].x*F_min[l, o] for l in existing_lines) -
+			sum(beta_bar[u, o].x*G_max[u, o]*x[u] for u in candidate_units) -
+			sum(mu_bar[l, o].x*F_max[l, o]*y[l] - mu_underline[l, o].x*F_min[l, o]*y[l] for l in candidate_lines)
 			for o in scenarios)
-
-	obj = r(obj)
 
 	return obj
 
